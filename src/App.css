@@ -1,2 +1,10 @@
 main {
+  min-width: 384px; /* w-96 */
+  min-height: 400px;
+  background-color: #F0F4FF;
+  padding: 1rem;
+}
+
+.dark {
+  color-scheme: dark;
 }
