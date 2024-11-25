@@ -5,26 +5,33 @@
   "description": "React TypeScript on Replit, using Vite bundler",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "npm run generate-assets && tsc && vite build && npm run check-dist",
+    "preview": "vite preview",
+    "generate-assets": "node scripts/generate-icons.js && node scripts/generate-manifest.js",
+    "check-dist": "node scripts/check-dist.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/node": "^22.9.3",
     "@types/react": "^18.0.15",
     "@types/react-dom": "^18.0.6",
     "@vitejs/plugin-react": "^2.0.0",
+    "canvas": "^2.11.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "typescript": "^4.7.4",
     "vite": "^3.0.4"
   },
   "dependencies": {
-    "lucide-react": "^0.359.0",
     "@types/chrome": "^0.0.263",
-    "tailwindcss": "^3.4.1",
+    "@types/recharts": "^1.8.29",
     "autoprefixer": "^10.4.18",
-    "postcss": "^8.4.35"
+    "framer-motion": "^11.11.17",
+    "lucide-react": "^0.359.0",
+    "postcss": "^8.4.35",
+    "recharts": "^2.13.3",
+    "tailwindcss": "^3.4.1"
   }
 }

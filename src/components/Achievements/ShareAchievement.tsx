@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Share2, Twitter, LinkedIn, Download, Image } from 'lucide-react';
+import { Share2, Twitter, Linkedin, Download, Image } from 'lucide-react';
 import { Achievement } from '../../types/app';
 import { shareAchievementImage, getGradientThemes } from '../../utils/imageGenerator';
 
@@ -64,7 +64,7 @@ export function ShareAchievement({ achievement, focusScore }: ShareAchievementPr
                        text-blue-700 dark:text-blue-400 transition-colors"
               title="Share on LinkedIn"
             >
-              <LinkedIn className="w-5 h-5" />
+              <Linkedin className="w-5 h-5" />
             </button>
             
             <button

@@ -1,18 +1,28 @@
 run = "npm run dev"
-modules = ["nodejs-20"]
-hidden = [".config", "tsconfig.json", "tsconfig.node.json", "vite.config.js", ".gitignore"]
 entrypoint = "src/App.tsx"
 
-[nix]
-channel = "stable-24_05"
-
-[unitTest]
+[packager]
 language = "nodejs"
 
+[packager.features]
+packageSearch = true
+guessImports = true
+
+[languages.javascript]
+pattern = "**/{*.js,*.jsx,*.ts,*.tsx}"
+
+[languages.javascript.languageServer]
+start = [ "typescript-language-server", "--stdio" ]
+
+[env]
+XDG_CONFIG_HOME = "/home/runner/.config"
+
+[nix]
+channel = "stable-22_11"
+
 [deployment]
-deploymentTarget = "static"
-build = ["npm", "run", "build"]
-publicDir = "dist"
+run = ["sh", "-c", "npm run dev"]
+deploymentTarget = "cloudrun"
 
 [[ports]]
 localPort = 5173

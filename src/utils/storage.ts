@@ -9,6 +9,20 @@ export interface StorageData {
   quoteChangeInterval: number;
 }
 
+export interface Quote {
+  id: string;
+  text: string;
+  author: string;
+  category: string;
+  isFavorite?: boolean;
+}
+
+export interface Session {
+  date: string;
+  duration: number;
+  completedBreaks: number;
+}
+
 export const getStorageData = (keys: (keyof StorageData)[]) => {
   return new Promise<Partial<StorageData>>((resolve) => {
     chrome.storage.sync.get(keys, (result) => {

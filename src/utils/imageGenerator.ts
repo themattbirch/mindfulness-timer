@@ -1,13 +1,13 @@
 import { Achievement } from '../types/app';
 
-type GradientTheme = {
+export type GradientTheme = {
   name: string;
   startColor: string;
   endColor: string;
   cardColor: string;
   textColor: string;
   accentColor: string;
-};
+}
 
 const gradientThemes: GradientTheme[] = [
   {

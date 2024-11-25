@@ -19,7 +19,7 @@
     "paths": {
       "@/*": ["src/*"]
     },
-    "types": ["vite/client", "chrome"]
+    "types": ["vite/client", "chrome", "node"]
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
