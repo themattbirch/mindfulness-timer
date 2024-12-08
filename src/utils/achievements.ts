@@ -1,52 +1,29 @@
+// src/utils/achievements.ts
+
 import { Achievement } from '../types/app';
 
 export const achievements: Achievement[] = [
   {
     id: 'first-session',
-    name: 'First Step',
-    description: 'Complete your first mindfulness session',
-    icon: '🌱',
+    name: 'First Session',
+    description: 'Complete your first mindfulness session.',
+    icon: '🎉',
     target: 1,
     progress: 0,
     unlockedAt: null
   },
   {
-    id: 'streak-7',
-    name: 'Weekly Warrior',
-    description: 'Maintain a 7-day streak',
-    icon: '🔥',
-    target: 7,
+    id: 'ten-sessions',
+    name: 'Consistent Practitioner',
+    description: 'Complete 10 mindfulness sessions.',
+    icon: '🏆',
+    target: 10,
     progress: 0,
     unlockedAt: null
   },
-  {
-    id: 'total-hours-10',
-    name: 'Mindfulness Explorer',
-    description: 'Accumulate 10 hours of mindfulness practice',
-    icon: '⭐',
-    target: 600, // minutes
-    progress: 0,
-    unlockedAt: null
-  },
-  {
-    id: 'perfect-week',
-    name: 'Perfect Week',
-    description: 'Complete all weekly goals',
-    icon: '🎯',
-    target: 1,
-    progress: 0,
-    unlockedAt: null
-  },
-  {
-    id: 'focus-master',
-    name: 'Focus Master',
-    description: 'Achieve a focus score of 90+',
-    icon: '🧠',
-    target: 90,
-    progress: 0,
-    unlockedAt: null
-  }
+  // Add more achievements as needed...
 ];
+
 
 export const calculateFocusScore = (
   completionRate: number,

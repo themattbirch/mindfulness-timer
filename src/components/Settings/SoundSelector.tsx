@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+// src/components/Settings/SoundSelector.tsx
+
+import React, { useState, useEffect } from 'react';
 import { Volume2, Play, Check } from 'lucide-react';
 import { soundManager, availableSounds } from '../../utils/sounds';
 
@@ -30,6 +32,7 @@ export function SoundSelector({
 
   return (
     <div className="space-y-4">
+      {/* Volume Control */}
       <div className="flex items-center space-x-2">
         <Volume2 className="w-4 h-4 text-gray-400" />
         <input
@@ -42,6 +45,7 @@ export function SoundSelector({
         />
       </div>
 
+      {/* Sound Selection */}
       <div className="space-y-2">
         {availableSounds.map((sound) => (
           <div
@@ -52,25 +56,24 @@ export function SoundSelector({
             <div className="flex items-center space-x-3">
               <button
                 onClick={() => handlePreview(sound.id)}
-                className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600"
+                className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                aria-label={`Preview sound ${sound.name}`}
               >
-                <Play className="w-4 h-4" />
+                <Play className="w-4 h-4 text-gray-600 dark:text-gray-400" />
               </button>
               <span className="text-sm">{sound.name}</span>
             </div>
             <button
               onClick={() => onSoundSelect(sound.id)}
-              className={`p-2 rounded-full ${
-                selectedSound === sound.id
-                  ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400'
-                  : 'text-gray-400'
-              }`}
+              className={`flex items-center px-4 py-2 rounded-lg transition-colors
+                ${sound.id === selectedSound ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+              aria-label={`Select sound ${sound.name}`}
             >
-              <Check className="w-4 h-4" />
+              {sound.id === selectedSound && <Check className="w-4 h-4" />}
             </button>
           </div>
         ))}
       </div>
     </div>
   );
-} 
+}

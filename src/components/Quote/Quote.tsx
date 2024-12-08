@@ -1,9 +1,12 @@
+// src/components/Quote/Quote.tsx
+
 import { useState, useEffect } from 'react';
 import { Heart } from 'lucide-react';
-import { Quote as QuoteType } from '../../utils/storage';
+import { Quote as QuoteType } from '../../types/app'; // Corrected import
 
 interface QuoteProps {
   changeInterval: number;
+  category?: string; // new prop
   onFavorite?: (quote: QuoteType) => void;
 }
 
@@ -14,25 +17,44 @@ const defaultQuotes: QuoteType[] = [
     author: "Thich Nhat Hanh",
     category: "presence",
   },
-  // Add more default quotes...
+  {
+    id: '2',
+    text: "Breathing in, I calm my body. Breathing out, I smile.",
+    author: "Thich Nhat Hanh",
+    category: "breathing",
+  },
+  {
+    id: '3',
+    text: "Mindfulness isn’t difficult, we just need to remember to do it.",
+    author: "Sharon Salzberg",
+    category: "mindfulness",
+  },
+  // Add more quotes with appropriate categories...
 ];
 
-export function Quote({ changeInterval, onFavorite }: QuoteProps) {
+export function Quote({ changeInterval, category = 'all', onFavorite }: QuoteProps) {
   const [currentQuote, setCurrentQuote] = useState<QuoteType>(defaultQuotes[0]);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   useEffect(() => {
+    const filteredQuotes = category === 'all' ? defaultQuotes : defaultQuotes.filter(q => q.category === category);
+    
+    if (filteredQuotes.length === 0) return;
+
     const interval = setInterval(() => {
       setIsTransitioning(true);
       setTimeout(() => {
-        const newQuote = defaultQuotes[Math.floor(Math.random() * defaultQuotes.length)];
+        let newQuote = currentQuote;
+        while (newQuote.id === currentQuote.id) {
+          newQuote = filteredQuotes[Math.floor(Math.random() * filteredQuotes.length)];
+        }
         setCurrentQuote(newQuote);
         setIsTransitioning(false);
       }, 500);
     }, changeInterval * 1000);
 
     return () => clearInterval(interval);
-  }, [changeInterval]);
+  }, [changeInterval, category, currentQuote]);
 
   return (
     <div className="relative">
@@ -41,7 +63,7 @@ export function Quote({ changeInterval, onFavorite }: QuoteProps) {
           isTransitioning ? 'opacity-0' : 'opacity-100'
         }`}
       >
-        <p className="text-center italic text-gray-800 dark:text-gray-200">
+        <p className="text-center italic text-gray-800 dark:text-gray-200 text-lg">
           "{currentQuote.text}"
         </p>
         <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-2">
@@ -61,4 +83,4 @@ export function Quote({ changeInterval, onFavorite }: QuoteProps) {
       )}
     </div>
   );
-} 
+}

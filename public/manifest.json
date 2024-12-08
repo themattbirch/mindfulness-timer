@@ -3,11 +3,7 @@
   "name": "Mindfulness Timer",
   "version": "1.0.0",
   "description": "A mindful browsing companion that provides periodic reminders with inspirational quotes",
-  "permissions": [
-    "notifications",
-    "storage",
-    "alarms"
-  ],
+  "permissions": ["notifications", "storage", "alarms"],
   "action": {
     "default_popup": "index.html",
     "default_icon": {

@@ -52,7 +52,7 @@ export function Notification({ quote, onClose, onTakeBreak, onSnooze }: Notifica
                   setIsVisible(false);
                   setTimeout(onClose, 300);
                 }}
-                className="text-white hover:text-blue-100"
+  className="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors focus:outline-none focus:ring-2 focus:ring-green-300"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -68,14 +68,14 @@ export function Notification({ quote, onClose, onTakeBreak, onSnooze }: Notifica
             <div className="border-t px-4 py-2 flex justify-end space-x-2">
               <button
                 onClick={onSnooze}
-                className="flex items-center px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded"
+  className="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors focus:outline-none focus:ring-2 focus:ring-green-300"
               >
                 <Clock className="w-4 h-4 mr-1" />
                 Snooze
               </button>
               <button
                 onClick={onTakeBreak}
-                className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded"
+  className="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors focus:outline-none focus:ring-2 focus:ring-green-300"
               >
                 <Check className="w-4 h-4 mr-1" />
                 Take Break

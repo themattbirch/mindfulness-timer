@@ -1,38 +1,29 @@
-export interface StorageData {
-  interval: number;
-  soundEnabled: boolean;
-  notificationsEnabled: boolean;
-  theme: 'light' | 'dark';
-  soundVolume: number;
-  autoStartTimer: boolean;
-  showQuotes: boolean;
-  quoteChangeInterval: number;
-}
+// src/utils/storage.ts
 
-export interface Quote {
-  id: string;
-  text: string;
-  author: string;
-  category: string;
-  isFavorite?: boolean;
-}
+import { AppSettings } from '../types/app';
 
-export interface Session {
-  date: string;
-  duration: number;
-  completedBreaks: number;
-}
-
-export const getStorageData = (keys: (keyof StorageData)[]) => {
-  return new Promise<Partial<StorageData>>((resolve) => {
+/**
+ * Fetches settings from Chrome storage.
+ * @param keys - Array of keys from AppSettings to retrieve.
+ * @returns A promise that resolves to a partial AppSettings object.
+ */
+export async function getStorageData(keys: (keyof AppSettings)[]): Promise<Partial<AppSettings>> {
+  return new Promise((resolve) => {
     chrome.storage.sync.get(keys, (result) => {
-      resolve(result as Partial<StorageData>);
+      resolve(result as Partial<AppSettings>);
     });
   });
-};
+}
 
-export const setStorageData = (data: Partial<StorageData>) => {
-  return new Promise<void>((resolve) => {
-    chrome.storage.sync.set(data, resolve);
+/**
+ * Sets settings in Chrome storage.
+ * @param data - Partial AppSettings object to set.
+ * @returns A promise that resolves when the data is set.
+ */
+export async function setStorageData(data: Partial<AppSettings>): Promise<void> {
+  return new Promise((resolve) => {
+    chrome.storage.sync.set(data, () => {
+      resolve();
+    });
   });
-}; 
+}
