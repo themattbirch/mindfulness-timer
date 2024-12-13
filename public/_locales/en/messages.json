@@ -1,0 +1,10 @@
+{
+  "extensionName": {
+    "message": "Mindfulness Timer",
+    "description": "The name of the extension"
+  },
+  "extensionDescription": {
+    "message": "A mindful browsing companion that provides periodic reminders with inspirational quotes",
+    "description": "The description of the extension"
+  }
+}

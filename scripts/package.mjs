@@ -1,14 +1,13 @@
 // scripts/package.mjs
 
-import fs from "fs";
+import fs from "fs-extra";
 import path from "path";
 import { exec } from "child_process";
-import { createRequire } from "module";
-import archiver from "archiver"; // This line will be adjusted below
+import { dirname } from "path";
+import { fileURLToPath } from "url";
 
-// Create a CommonJS require function
-const require = createRequire(import.meta.url);
-const archiverModule = require("archiver");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Function to run shell commands and return a promise
 function runCommand(command, cwd = process.cwd()) {
@@ -42,6 +41,10 @@ function validateManifest(manifestPath) {
     "version",
     "action",
     "permissions",
+    "background",
+    "icons",
+    "description",
+    // Add other required fields as per your manifest version
   ];
   requiredFields.forEach((field) => {
     if (!manifest.hasOwnProperty(field)) {
@@ -52,19 +55,12 @@ function validateManifest(manifestPath) {
   console.log("manifest.json validation passed.");
 }
 
-// Function to zip the extension
-function zipDirectory(source, out) {
-  const archive = archiverModule("zip", { zlib: { level: 9 } });
-  const stream = fs.createWriteStream(out);
-
-  return new Promise((resolve, reject) => {
-    archive
-      .directory(source, false)
-      .on("error", (err) => reject(err))
-      .pipe(stream);
-
-    stream.on("close", () => resolve());
-    archive.finalize();
+// Function to list files in a directory
+function listFiles(directoryPath) {
+  const files = fs.readdirSync(directoryPath);
+  console.log(`\nFiles in ${directoryPath}:`);
+  files.forEach((file) => {
+    console.log(`- ${file}`);
   });
 }
 
@@ -86,20 +82,38 @@ async function packageExtension() {
     );
     const version = packageJson.version || "1.0.0";
 
-    // Step 4: Define output zip file name
-    const zipFileName = `mindfulness-timer-v${version}.zip`;
-    const zipFilePath = path.join(process.cwd(), "build", zipFileName);
+    // Step 4: Update version in manifest.json
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+    manifest.version = version;
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+    console.log("Updated manifest.json version.");
 
-    // Ensure the build directory exists
-    const buildDir = path.join(process.cwd(), "build");
-    if (!fs.existsSync(buildDir)) {
-      fs.mkdirSync(buildDir);
+    // Step 5: Define output folder name
+    const buildFolderName = "mindfulness-build";
+    const buildFolderPath = path.join(process.cwd(), buildFolderName);
+
+    // Remove existing build folder if it exists
+    if (fs.existsSync(buildFolderPath)) {
+      fs.removeSync(buildFolderPath);
+      console.log(`Removed existing ${buildFolderName} folder.`);
     }
 
-    // Step 5: Zip the dist directory
-    console.log("Zipping the extension...");
-    await zipDirectory(path.join(process.cwd(), "dist"), zipFilePath);
-    console.log(`Extension zipped successfully at ${zipFilePath}`);
+    // List files in dist/ before copying
+    listFiles(path.join(process.cwd(), "dist"));
+
+    // Step 6: Copy dist directory to build folder using fs-extra (synchronously)
+    console.log(`\nCopying files to ${buildFolderName} folder...`);
+    fs.copySync(path.join(process.cwd(), "dist"), buildFolderPath, {
+      filter: (src) => !src.includes(".DS_Store"),
+    });
+    console.log(`Files copied to ${buildFolderName} successfully.`);
+
+    // List files in mindfulness-build/ after copying
+    listFiles(buildFolderPath);
+
+    // Step 7: Run check-dist.js
+    console.log("\nRunning check-dist.js...");
+    await runCommand(`node ${path.join(__dirname, "check-dist.js")}`);
 
     console.log("Packaging completed successfully!");
   } catch (err) {

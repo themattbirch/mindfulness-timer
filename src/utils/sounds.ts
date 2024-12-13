@@ -9,19 +9,19 @@ const defaultSounds: Sound[] = [
   {
     id: 'gentle-bell',
     name: 'Gentle Bell',
-    url: '/sounds/gentle-bell.mp3',
+    url: 'sounds/gentle-bell.mp3',
     category: 'bell'
   },
   {
     id: 'meditation-bowl',
     name: 'Meditation Bowl',
-    url: '/sounds/meditation-bowl.mp3',
+    url: 'sounds/meditation-bowl.mp3',
     category: 'notification'
   },
   {
     id: 'forest-ambient',
     name: 'Forest Ambience',
-    url: '/sounds/forest-ambient.mp3',
+    url: 'sounds/forest-ambient.mp3',
     category: 'ambient'
   }
 ];
