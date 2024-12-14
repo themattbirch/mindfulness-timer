@@ -17,13 +17,10 @@ export function Notification({ quote, onClose, onTakeBreak, onSnooze }: Notifica
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // Slide in animation
     setTimeout(() => setIsVisible(true), 100);
-    
-    // Auto-dismiss after 30 seconds
     const timer = setTimeout(() => {
       setIsVisible(false);
-      setTimeout(onClose, 300); // Allow animation to complete
+      setTimeout(onClose, 300);
     }, 30000);
 
     return () => clearTimeout(timer);
@@ -33,14 +30,14 @@ export function Notification({ quote, onClose, onTakeBreak, onSnooze }: Notifica
     <AnimatePresence>
       {isVisible && (
         <motion.div
-          className="fixed top-4 right-4 w-80"
+          className="fixed top-4 right-4 w-80 z-50"
           variants={slideAnimations.fromTop}
           initial="initial"
           animate="animate"
           exit="exit"
           transition={transition}
         >
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
             {/* Header */}
             <div className="bg-blue-600 px-4 py-2 flex items-center justify-between">
               <div className="flex items-center space-x-2 text-white">
@@ -52,7 +49,7 @@ export function Notification({ quote, onClose, onTakeBreak, onSnooze }: Notifica
                   setIsVisible(false);
                   setTimeout(onClose, 300);
                 }}
-  className="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors focus:outline-none focus:ring-2 focus:ring-green-300"
+                className="text-white hover:text-gray-100 focus:outline-none"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -60,22 +57,22 @@ export function Notification({ quote, onClose, onTakeBreak, onSnooze }: Notifica
 
             {/* Content */}
             <div className="p-4">
-              <p className="text-gray-800 italic">{quote.text}</p>
-              <p className="text-gray-600 text-sm mt-2">— {quote.author}</p>
+              <p className="text-gray-800 dark:text-gray-200 italic">{quote.text}</p>
+              <p className="text-gray-600 dark:text-gray-300 text-sm mt-2">— {quote.author}</p>
             </div>
 
             {/* Actions */}
             <div className="border-t px-4 py-2 flex justify-end space-x-2">
               <button
                 onClick={onSnooze}
-  className="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors focus:outline-none focus:ring-2 focus:ring-green-300"
+                className="flex items-center px-3 py-1 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors focus:outline-none focus:ring-2 focus:ring-green-300"
               >
                 <Clock className="w-4 h-4 mr-1" />
                 Snooze
               </button>
               <button
                 onClick={onTakeBreak}
-  className="flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors focus:outline-none focus:ring-2 focus:ring-green-300"
+                className="flex items-center px-3 py-1 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors focus:outline-none focus:ring-2 focus:ring-green-300"
               >
                 <Check className="w-4 h-4 mr-1" />
                 Take Break
@@ -86,4 +83,4 @@ export function Notification({ quote, onClose, onTakeBreak, onSnooze }: Notifica
       )}
     </AnimatePresence>
   );
-} 
+}

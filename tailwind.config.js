@@ -1,16 +1,16 @@
-/** @type {import('tailwindcss').Config} */
+// tailwind.config.js
 module.exports = {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
-  darkMode: 'class',
+  darkMode: "class",
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
       colors: {
-        background: '#F0F4FF',
+        primary: { light: "#A8DADC", DEFAULT: "#457B9D", dark: "#1D3557" },
+        secondary: { light: "#F1FAEE", DEFAULT: "#E63946", dark: "#B5838D" },
+        accent: { DEFAULT: "#F4A261" },
+        neutral: { light: "#F0F4FF", DEFAULT: "#FFFFFF", dark: "#333333" },
       },
     },
   },
   plugins: [],
-} 
+};

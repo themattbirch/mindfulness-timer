@@ -1,5 +1,3 @@
-// src/types/app.d.ts
-
 export interface AppSettings {
   interval: number;
   soundEnabled: boolean;
@@ -10,8 +8,11 @@ export interface AppSettings {
   showQuotes: boolean;
   quoteChangeInterval: number;
   selectedSound: string;
-  timerMode: 'focus' | 'shortBreak' | 'longBreak';
+  // Add 'custom' as a valid timer mode
+  timerMode: 'focus' | 'shortBreak' | 'longBreak' | 'custom';
   quoteCategory: string;
+  // Add minimalMode to fix the missing property errors
+  minimalMode?: boolean;
 }
 
 export interface StorageData extends AppSettings {
