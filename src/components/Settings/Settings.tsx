@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { SoundSelector } from './SoundSelector';
+import React from 'react';
 import { AppSettings, Achievement } from '../../types/app';
 import { achievements } from '../../utils/achievements';
+import { SoundSelector } from './SoundSelector';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -11,7 +11,7 @@ interface SettingsProps {
 }
 
 export function Settings({ isOpen, onClose, settings, onSettingsChange }: SettingsProps) {
-  const [view, setView] = useState<'settings' | 'achievements'>('settings');
+  const [view, setView] = React.useState<'settings' | 'achievements'>('settings');
 
   if (!isOpen) return null;
 
@@ -19,22 +19,30 @@ export function Settings({ isOpen, onClose, settings, onSettingsChange }: Settin
     onSettingsChange({ ...settings, [key]: value });
   };
 
-  const modalWrapperClasses = `
-    fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50
-  `;
-
-  const modalClasses = `
-    ${settings.theme === 'dark' ? 'dark bg-gray-800 text-gray-100' : 'bg-white text-gray-900'}
-    p-6 rounded-lg w-96 relative shadow-lg space-y-6
-  `;
-
-  const sectionHeaderClasses = `
-    text-sm font-medium text-gray-700 dark:text-gray-200 mb-2
-  `;
+  // Tabs logic: if view=settings, only show Achievements tab; if view=achievements, only show Settings tab
+  const tabs = view === 'settings'
+    ? (
+      <button
+        onClick={() => setView('achievements')}
+        className="pb-1 border-b-2 text-sm font-semibold border-transparent text-gray-600 dark:text-gray-300 hover:text-primary"
+      >
+        Achievements
+      </button>
+    ) : (
+      <button
+        onClick={() => setView('settings')}
+        className="pb-1 border-b-2 text-sm font-semibold border-transparent text-gray-600 dark:text-gray-300 hover:text-primary"
+      >
+        Settings
+      </button>
+    );
 
   return (
-    <div className={modalWrapperClasses}>
-      <div className={modalClasses}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+      <div className={`
+        ${settings.theme === 'dark' ? 'dark bg-gray-800 text-gray-100' : 'bg-white text-gray-900'}
+        p-6 rounded-lg w-96 relative shadow-lg space-y-6
+      `}>
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -45,27 +53,13 @@ export function Settings({ isOpen, onClose, settings, onSettingsChange }: Settin
         </button>
         
         <div className="flex space-x-4 border-b border-gray-300 dark:border-gray-600 pb-2">
-          <button
-            onClick={() => setView('settings')}
-            className={`pb-1 border-b-2 text-sm font-semibold 
-              ${view === 'settings' ? 'border-primary text-primary' : 'border-transparent text-gray-600 dark:text-gray-300 hover:text-primary'}`}
-          >
-            Settings
-          </button>
-          <button
-            onClick={() => setView('achievements')}
-            className={`pb-1 border-b-2 text-sm font-semibold 
-              ${view === 'achievements' ? 'border-primary text-primary' : 'border-transparent text-gray-600 dark:text-gray-300 hover:text-primary'}`}
-          >
-            Achievements
-          </button>
+          {tabs}
         </div>
 
         {view === 'settings' && (
           <div className="space-y-4">
-            {/* Timer Mode */}
             <div>
-              <label className={sectionHeaderClasses}>Timer Mode</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Timer Mode</label>
               <select
                 value={settings.timerMode}
                 onChange={(e) => handleChange('timerMode', e.target.value)}
@@ -78,10 +72,9 @@ export function Settings({ isOpen, onClose, settings, onSettingsChange }: Settin
               </select>
             </div>
 
-            {/* Custom Interval if custom mode selected */}
             {settings.timerMode === 'custom' && (
               <div>
-                <label className={sectionHeaderClasses}>Custom Duration (minutes)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Custom Duration (minutes)</label>
                 <input
                   type="number"
                   value={settings.interval}
@@ -92,9 +85,8 @@ export function Settings({ isOpen, onClose, settings, onSettingsChange }: Settin
               </div>
             )}
 
-            {/* Sound Volume */}
             <div>
-              <label className={sectionHeaderClasses}>Sound Volume</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Sound Volume</label>
               <input
                 type="range"
                 min="0"
@@ -105,7 +97,6 @@ export function Settings({ isOpen, onClose, settings, onSettingsChange }: Settin
               />
             </div>
 
-            {/* Enable Sounds */}
             <div className="flex items-center space-x-2">
               <input
                 id="enableSounds"
@@ -117,7 +108,6 @@ export function Settings({ isOpen, onClose, settings, onSettingsChange }: Settin
               <label htmlFor="enableSounds" className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable Sounds</label>
             </div>
 
-            {/* Enable Notifications */}
             <div className="flex items-center space-x-2">
               <input
                 id="enableNotifications"
@@ -129,9 +119,8 @@ export function Settings({ isOpen, onClose, settings, onSettingsChange }: Settin
               <label htmlFor="enableNotifications" className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable Notifications</label>
             </div>
 
-            {/* Quote Category */}
             <div>
-              <label className={sectionHeaderClasses}>Quote Category</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Quote Category</label>
               <select
                 value={settings.quoteCategory}
                 onChange={(e) => handleChange('quoteCategory', e.target.value)}
@@ -144,7 +133,6 @@ export function Settings({ isOpen, onClose, settings, onSettingsChange }: Settin
               </select>
             </div>
 
-            {/* Show Quotes */}
             <div className="flex items-center space-x-2">
               <input
                 id="showQuotes"
@@ -156,9 +144,8 @@ export function Settings({ isOpen, onClose, settings, onSettingsChange }: Settin
               <label htmlFor="showQuotes" className="text-sm font-medium text-gray-700 dark:text-gray-200">Show Quotes</label>
             </div>
 
-            {/* Theme Selector */}
             <div>
-              <label className={sectionHeaderClasses}>Theme</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Theme</label>
               <select
                 value={settings.theme}
                 onChange={(e) => handleChange('theme', e.target.value)}
@@ -169,7 +156,6 @@ export function Settings({ isOpen, onClose, settings, onSettingsChange }: Settin
               </select>
             </div>
 
-            {/* Sound Selector */}
             <SoundSelector
               selectedSound={settings.selectedSound}
               volume={settings.soundVolume}
