@@ -5,10 +5,21 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: { light: "#A8DADC", DEFAULT: "#457B9D", dark: "#1D3557" },
-        secondary: { light: "#F1FAEE", DEFAULT: "#E63946", dark: "#B5838D" },
-        accent: { DEFAULT: "#F4A261" },
-        neutral: { light: "#F0F4FF", DEFAULT: "#FFFFFF", dark: "#333333" },
+        primary: {
+          light: "#93C5FD",
+          DEFAULT: "#3B82F6",
+          dark: "#2563EB",
+        },
+        secondary: {
+          light: "#FCA5A5",
+          DEFAULT: "#EF4444",
+          dark: "#DC2626",
+        },
+        neutral: {
+          light: "#F3F4F6",
+          DEFAULT: "#FFFFFF",
+          dark: "#1F2937",
+        },
       },
     },
   },

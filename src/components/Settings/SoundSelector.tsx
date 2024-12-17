@@ -28,42 +28,54 @@ export function SoundSelector({
   };
 
   return (
-    <div className="mt-4 space-y-4">
-      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200">Select Your Sound:</h3>
-      <div className="flex items-center space-x-2">
-        <span className="text-gray-700 dark:text-gray-200">Volume:</span>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={volume}
-          onChange={(e) => onVolumeChange(Number(e.target.value))}
-          className="w-full"
-        />
-      </div>
+    <div className="space-y-4 pl-2 w-full"> {/* Added pl-2 for left alignment */}
+      <div className="flex flex-col space-y-2">
+        <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+          Select Your Sound:
+        </label>
+        
+        <div className="flex items-center space-x-2 mb-4">
+          <span className="text-sm text-gray-700 dark:text-gray-200 min-w-[60px]">Volume:</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={volume}
+            onChange={(e) => onVolumeChange(Number(e.target.value))}
+            className="flex-grow"
+          />
+        </div>
 
-  <ul role="radiogroup" className="list-none m-0 p-0 space-y-2" style={{ listStyleType: 'none' }}>
-        {availableSounds.map((sound) => {
-          const isSelected = sound.id === selectedSound;
-          return (
-<li className="flex items-center space-x-3">
+        <div className="space-y-3"> {/* Increased spacing between sound options */}
+          {availableSounds.map((sound) => (
+            <div key={sound.id} className="flex items-center space-x-3 py-1">
               <input
                 type="radio"
+                id={sound.id}
                 name="soundSelect"
                 value={sound.id}
-                checked={isSelected}
+                checked={sound.id === selectedSound}
                 onChange={() => onSoundSelect(sound.id)}
-                className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                aria-checked={isSelected}
+                className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
               />
-               <span>{sound.name}</span>
-  <button onClick={() => handlePreview(sound.id)} className="text-sm px-2 py-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded">
-    <Play className="w-4 h-4 mr-1" />Preview
-  </button>
-</li>
-          );
-        })}
-      </ul>
+              <label
+                htmlFor={sound.id}
+                className="flex-grow text-sm text-gray-700 dark:text-gray-200"
+              >
+                {sound.name}
+              </label>
+              <button
+                onClick={() => handlePreview(sound.id)}
+                className="flex items-center px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md transition-colors"
+                disabled={previewingSound !== null}
+              >
+                <Play className="w-3 h-3 mr-1" />
+                Preview
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

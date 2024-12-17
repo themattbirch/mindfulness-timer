@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, CSSProperties } from 'react';
 import { Settings as SettingsIcon } from 'lucide-react';
 import './App.css';
 import { Timer } from './components/Timer/Timer';
@@ -10,7 +10,7 @@ import { playSound } from './utils/sounds';
 import { AppSettings } from './types/app';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Joyride, { CallBackProps, STATUS, Step } from 'react-joyride';
+import Joyride, { CallBackProps, Step } from 'react-joyride';
 
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>({
@@ -37,7 +37,6 @@ export default function App() {
   const prevMode = useRef(settings.timerMode);
   const prevInterval = useRef(settings.interval);
 
-  // Joyride steps and logic
   const steps: Step[] = [
     {
       target: '.actual-timer-start-button',
@@ -56,6 +55,14 @@ export default function App() {
     const { status } = data;
     if (['finished', 'skipped'].includes(status)) setRun(false);
   }
+
+  useEffect(() => {
+    if (settings.theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [settings.theme]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -87,25 +94,24 @@ export default function App() {
   }, [settings, isTimerActive, isPaused]);
 
   useEffect(() => {
-  let timer: number | undefined;
-  if (isTimerActive && timeLeft > 0) {
-    timer = window.setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          handleTimerComplete();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }
-  return () => {
-    if (timer !== undefined) {
-      clearInterval(timer);
+    let timer: number | undefined;
+    if (isTimerActive && timeLeft > 0) {
+      timer = window.setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            handleTimerComplete();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     }
-  };
-}, [isTimerActive, timeLeft]);
-
+    return () => {
+      if (timer !== undefined) {
+        clearInterval(timer);
+      }
+    };
+  }, [isTimerActive, timeLeft]);
 
   async function handleTimerComplete() {
     if (settings.soundEnabled) await playSound('complete');
@@ -162,14 +168,38 @@ export default function App() {
     toast.success('Timer resumed.');
   }
 
-  // On click of circle, revert isShrunk = false (show full UI again)
   const handleCircleClick = () => {
     setIsPaused(false);
     setIsTimerActive(false);
   };
 
+  // Global click handler: If timer is active and not paused, pause on any click
+  function handleGlobalClick() {
+    if (isTimerActive && !isPaused) {
+      handlePauseTimer();
+    }
+  }
+
+  // For minimal mode: small container, just the circle, centered.
+  // For full mode: allow auto height, with max-height and overflow-y-auto so the content fits and we can scroll if needed.
+  const containerStyle: CSSProperties = isShrunk
+  ? {
+      width: 72, // pixels
+      height: 72, // pixels
+      overflow: 'hidden',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }
+  : {
+      width: 320, // pixels
+      height: 'auto',
+      maxHeight: 600, // pixels
+      overflowY: 'auto',
+    };
+
   return (
-    <div className={`${settings.theme === 'dark' ? 'dark' : ''}`} style={{ width: '320px', height: '400px', overflow:'hidden' }}>
+    <div style={containerStyle} onClick={handleGlobalClick}>
       <Joyride
         steps={steps}
         run={run}
@@ -182,7 +212,9 @@ export default function App() {
         disableOverlayClose
         scrollToFirstStep
       />
-      <div className="w-full h-full bg-neutral-light dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center">
+
+      {/* When not shrunk, we want to ensure we have padding at top so gear icon shows */}
+      <div className={`w-full ${isShrunk ? '' : 'bg-white dark:bg-gray-900 text-black dark:text-white pt-12 pb-6 px-4'}`}>
         <Settings
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
@@ -199,19 +231,23 @@ export default function App() {
         {!isSettingsOpen && (
           <>
             {isShrunk ? (
-              // Minimal mode as a perfect circle
-              <div 
-                className="w-16 h-16 bg-primary rounded-full flex-none flex items-center justify-center cursor-pointer"
-                onClick={handleCircleClick}
+              <div
+                className="w-16 h-16 bg-primary rounded-full flex items-center justify-center cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCircleClick();
+                }}
               >
                 <span className="text-white font-bold text-sm">{formatTime(timeLeft)}</span>
               </div>
             ) : (
-              // Full UI mode
-              <div className="w-96 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 space-y-4 relative bg-transparent">
+              <div className="relative border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 space-y-4 bg-transparent">
                 <button
                   className="settings-button absolute top-2 right-2 p-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full transition-colors"
-                  onClick={() => setIsSettingsOpen(true)}
+                  onClick={(e) => {
+                    e.stopPropagation(); 
+                    setIsSettingsOpen(true);
+                  }}
                   aria-label="Open Settings"
                 >
                   <SettingsIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
@@ -232,6 +268,14 @@ export default function App() {
                     onComplete={handleTimerComplete}
                     isShrunk={false}
                   />
+
+                  {/* Show "Click anywhere..." only in full mode, active, not paused */}
+                  {isTimerActive && !isPaused && !isShrunk && (
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                      Click anywhere to pause timer
+                    </p>
+                  )}
+
                   {settings.showQuotes && (
                     <Quote
                       changeInterval={settings.quoteChangeInterval}
@@ -240,15 +284,12 @@ export default function App() {
                   )}
                 </div>
 
-                <div className="flex justify-center space-x-6">
+                <div className="flex justify-center">
                   <button
-                    onClick={isPaused ? handleResumeTimer : handleStartTimer}
-                    className="actual-timer-start-button px-4 py-2 bg-primary hover:bg-primary-light text-white rounded-lg"
-                  >
-                    {isPaused ? 'Resume Timer' : 'Start Timer'}
-                  </button>
-                  <button
-                    onClick={() => setRun(true)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRun(true);
+                    }}
                     className="px-4 py-2 bg-secondary hover:bg-secondary-light text-white rounded-lg"
                   >
                     Start Onboarding
