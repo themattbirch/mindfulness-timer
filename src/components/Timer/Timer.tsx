@@ -45,10 +45,6 @@ export function Timer({
         width: '64px',
         height: '64px',
         cursor: 'pointer',
-        position: 'fixed',
-        top: '20px',
-        right: '20px',
-        zIndex: 50
       } : {}}
       animate={{ 
         scale: isShrunk ? 0.8 : 1,

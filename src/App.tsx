@@ -38,17 +38,22 @@ export default function App() {
   const prevInterval = useRef(settings.interval);
 
   const steps: Step[] = [
-    {
-      target: '.actual-timer-start-button',
-      content: 'Click here to start your mindfulness session timer.',
-      disableBeacon: true
-    },
-    {
-      target: '.settings-button',
-      content: 'Adjust your preferences and timer settings here.',
-      disableBeacon: true
-    }
-  ];
+  {
+    target: '.actual-timer-start-button', 
+    content: 'Click the green button bellow to start your Mindfulness Timer session.',
+    disableBeacon: true
+  },
+  {
+    target: '.timer-container', // a class we’ll add around the timer
+    content: 'Click anywhere on the window to pause the timer when it’s running.',
+    disableBeacon: true
+  },
+  {
+    target: '.settings-button',
+    content: 'Adjust your preferences and timer settings here.',
+    disableBeacon: true
+  }
+];
 
   const [run, setRun] = useState(false);
   function handleJoyrideCallback(data: CallBackProps) {
@@ -153,19 +158,16 @@ export default function App() {
     setIsTimerActive(true);
     setIsPaused(false);
     chrome.runtime.sendMessage({ action: 'startTimer', interval: timeLeft / 60 });
-    toast.success(`Timer started: ${settings.timerMode.replace(/([A-Z])/g, ' $1')}`);
   }
 
   function handlePauseTimer() {
     setIsTimerActive(false);
     setIsPaused(true);
-    toast.info('Timer paused.');
   }
 
   function handleResumeTimer() {
     setIsTimerActive(true);
     setIsPaused(false);
-    toast.success('Timer resumed.');
   }
 
   const handleCircleClick = () => {
@@ -184,25 +186,24 @@ export default function App() {
   // For full mode: allow auto height, with max-height and overflow-y-auto so the content fits and we can scroll if needed.
   const containerStyle: CSSProperties = isShrunk
   ? {
-      width: 72, // pixels
-      height: 72, // pixels
-      overflow: 'hidden',
+      width: 72,
+      height: 72,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
+      overflow: 'hidden',
     }
   : {
-      width: 320, // pixels
-      height: 'auto',
-      maxHeight: 600, // pixels
+      width: 320,
+      maxHeight: 600,
       overflowY: 'auto',
     };
 
   return (
     <div style={containerStyle} onClick={handleGlobalClick}>
       <Joyride
-        steps={steps}
-        run={run}
+        steps={!isShrunk ? steps : []}
+        run={!isShrunk && run}
         callback={handleJoyrideCallback}
         showSkipButton
         continuous
@@ -214,7 +215,7 @@ export default function App() {
       />
 
       {/* When not shrunk, we want to ensure we have padding at top so gear icon shows */}
-      <div className={`w-full ${isShrunk ? '' : 'bg-white dark:bg-gray-900 text-black dark:text-white pt-12 pb-6 px-4'}`}>
+      <div className={`w-full ${isShrunk ? '' : 'min-h-screen'} 'bg-white dark:bg-gray-900 text-black dark:text-white pt-12 pb-6 px-4'}`}>
         <Settings
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
@@ -257,7 +258,7 @@ export default function App() {
                   Mindfulness Timer
                 </h1>
 
-                <div className="flex flex-col items-center space-y-2">
+                <div className="actual-timer-start-button timer-container flex flex-col items-center space-y-2">
                   <Timer
                     timeLeft={timeLeft}
                     isActive={isTimerActive}
@@ -269,13 +270,6 @@ export default function App() {
                     isShrunk={false}
                   />
 
-                  {/* Show "Click anywhere..." only in full mode, active, not paused */}
-                  {isTimerActive && !isPaused && !isShrunk && (
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                      Click anywhere to pause timer
-                    </p>
-                  )}
-
                   {settings.showQuotes && (
                     <Quote
                       changeInterval={settings.quoteChangeInterval}
@@ -286,14 +280,14 @@ export default function App() {
 
                 <div className="flex justify-center">
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setRun(true);
-                    }}
-                    className="px-4 py-2 bg-secondary hover:bg-secondary-light text-white rounded-lg"
-                  >
-                    Start Onboarding
-                  </button>
+        onClick={(e) => {
+        e.stopPropagation();
+        setRun(true);
+         }}
+          className="px-4 py-2 bg-secondary hover:bg-secondary-light text-white rounded-lg"
+            >
+               Start Onboarding
+          </button>
                 </div>
               </div>
             )}
