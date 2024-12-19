@@ -2,15 +2,16 @@ import React, { useState, useEffect, useRef, CSSProperties } from 'react';
 import { Settings as SettingsIcon } from 'lucide-react';
 import './App.css';
 import { Timer } from './components/Timer/Timer';
-import { Quote } from './components/Quote/Quote';
+import { Quote as QuoteComponent } from './components/Quote/Quote'; // Renamed to avoid conflict
 import { Settings } from './components/Settings/Settings';
 import { Notification } from './components/Notification/Notification';
 import { getStorageData, setStorageData } from './utils/storage';
 import { playSound } from './utils/sounds';
-import { AppSettings } from './types/app';
+import { AppSettings, Quote as QuoteType } from './types/app'; // Alias Quote type as QuoteType
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Joyride, { CallBackProps, Step } from 'react-joyride';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>({
@@ -28,7 +29,7 @@ export default function App() {
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [notification, setNotification] = useState<{ isVisible: boolean; quote: { text: string; author: string } } | null>(null);
+  const [notification, setNotification] = useState<{ isVisible: boolean; quote: QuoteType } | null>(null);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const isShrunk = isTimerActive && !isPaused;
@@ -128,14 +129,35 @@ export default function App() {
     setIsPaused(false);
   }
 
-  function getRandomQuote() {
-    const quotes = [
-      { text: "The present moment is filled with joy and happiness. If you are attentive, you will see it.", author: "Thich Nhat Hanh" },
-      { text: "Take a deep breath and relax.", author: "Unknown" },
-      { text: "Stay present and mindful.", author: "Thich Nhat Hanh" }
-    ];
-    return quotes[Math.floor(Math.random() * quotes.length)];
-  }
+    function getRandomQuote(): QuoteType {
+  const quotes: QuoteType[] = [
+    {
+      id: uuidv4(),
+      text: "The present moment is filled with joy and happiness. If you are attentive, you will see it.",
+      author: "Thich Nhat Hanh",
+      category: "presence",
+    },
+    {
+      id: uuidv4(),
+      text: "Take a deep breath and relax.",
+      author: "Unknown",
+      category: "relaxation",
+    },
+    {
+      id: uuidv4(),
+      text: "Stay present and mindful.",
+      author: "Thich Nhat Hanh",
+      category: "mindfulness",
+    },
+    {
+      id: uuidv4(),
+      text: "Mindfulness isn’t difficult, we just need to remember to do it.",
+      author: "Sharon Salzberg",
+      category: "mindfulness",
+    },
+  ]; 
+  return quotes[Math.floor(Math.random() * quotes.length)];
+}
 
   function handleTakeBreak() { setNotification(null); }
   function handleSnooze() {
@@ -192,11 +214,13 @@ export default function App() {
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
+      transition: 'width 0.3s ease, height 0.3s ease',
     }
   : {
       width: 320,
       maxHeight: 600,
       overflowY: 'auto',
+      transition: 'width 0.3s ease, height 0.3s ease',
     };
 
   return (
@@ -215,8 +239,12 @@ export default function App() {
       />
 
       {/* When not shrunk, we want to ensure we have padding at top so gear icon shows */}
-      <div className={`w-full ${isShrunk ? '' : 'min-h-screen'} 'bg-white dark:bg-gray-900 text-black dark:text-white pt-12 pb-6 px-4'}`}>
-        <Settings
+        <div
+        className={`w-full bg-white dark:bg-gray-900 text-black dark:text-white ${
+          isShrunk ? 'flex items-center justify-center' : 'pt-12 pb-6 px-4 min-h-screen'
+        }`}
+      >
+         <Settings
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
           settings={settings}
@@ -229,18 +257,21 @@ export default function App() {
           }}
         />
 
+
         {!isSettingsOpen && (
           <>
             {isShrunk ? (
               <div
-                className="w-16 h-16 bg-primary rounded-full flex items-center justify-center cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCircleClick();
-                }}
-              >
-                <span className="text-white font-bold text-sm">{formatTime(timeLeft)}</span>
-              </div>
+          className={`w-16 h-16 bg-primary rounded-full flex items-center justify-center cursor-pointer transition-transform ${
+            timeLeft === 0 ? 'animate-ping' : ''
+          }`}
+            onClick={(e) => {
+          e.stopPropagation();
+         handleCircleClick();
+          }}
+            >
+          <span className="text-white font-bold text-sm">{formatTime(timeLeft)}</span>
+        </div>
             ) : (
               <div className="relative border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 space-y-4 bg-transparent">
                 <button
@@ -271,11 +302,11 @@ export default function App() {
                   />
 
                   {settings.showQuotes && (
-                    <Quote
-                      changeInterval={settings.quoteChangeInterval}
-                      category={settings.quoteCategory}
-                    />
-                  )}
+          <QuoteComponent
+          changeInterval={settings.quoteChangeInterval}
+          category={settings.quoteCategory}
+           />
+              )}
                 </div>
 
                 <div className="flex justify-center">

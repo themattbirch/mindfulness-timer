@@ -1,30 +1,55 @@
-import { useState, useEffect } from 'react';
-import { Bell, X, Check, Clock } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { slideAnimations, transition } from '../../utils/animations';
+// src/components/Notification/Notification.tsx
+
+import React, { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Bell, X, Clock, Check } from 'lucide-react';
+import { Quote as QuoteType } from '../../types/app';
 
 interface NotificationProps {
-  quote: {
-    text: string;
-    author: string;
-  };
+  quote: QuoteType;
   onClose: () => void;
   onTakeBreak: () => void;
   onSnooze: () => void;
 }
 
-export function Notification({ quote, onClose, onTakeBreak, onSnooze }: NotificationProps) {
-  const [isVisible, setIsVisible] = useState(false);
+export const Notification: React.FC<NotificationProps> = ({
+  quote,
+  onClose,
+  onTakeBreak,
+  onSnooze,
+}) => {
+  const [isVisible, setIsVisible] = useState<boolean>(true);
 
+  // Automatically hide the notification after a certain time (optional)
   useEffect(() => {
-    setTimeout(() => setIsVisible(true), 100);
     const timer = setTimeout(() => {
-      setIsVisible(false);
-      setTimeout(onClose, 300);
-    }, 30000);
+      handleClose();
+    }, 10000); // Hide after 10 seconds
 
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, []);
+
+  const handleClose = () => {
+    setIsVisible(false);
+    // Ensure onClose is called after the animation completes
+    setTimeout(() => {
+      onClose();
+    }, 300); // Match the exit animation duration
+  };
+
+  // Animation variants for Framer Motion
+  const slideAnimations = {
+    fromTop: {
+      initial: { y: -100, opacity: 0 },
+      animate: { y: 0, opacity: 1 },
+      exit: { y: -100, opacity: 0 },
+    },
+  };
+
+  const transition = {
+    duration: 0.3,
+    ease: 'easeInOut',
+  };
 
   return (
     <AnimatePresence>
@@ -45,11 +70,9 @@ export function Notification({ quote, onClose, onTakeBreak, onSnooze }: Notifica
                 <span className="font-medium">Time for a mindful break</span>
               </div>
               <button
-                onClick={() => {
-                  setIsVisible(false);
-                  setTimeout(onClose, 300);
-                }}
+                onClick={handleClose}
                 className="text-white hover:text-gray-100 focus:outline-none"
+                aria-label="Close Notification"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -57,22 +80,30 @@ export function Notification({ quote, onClose, onTakeBreak, onSnooze }: Notifica
 
             {/* Content */}
             <div className="p-4">
-              <p className="text-gray-800 dark:text-gray-200 italic">{quote.text}</p>
+              <p className="text-gray-800 dark:text-gray-200 italic">"{quote.text}"</p>
               <p className="text-gray-600 dark:text-gray-300 text-sm mt-2">— {quote.author}</p>
             </div>
 
             {/* Actions */}
             <div className="border-t px-4 py-2 flex justify-end space-x-2">
               <button
-                onClick={onSnooze}
+                onClick={() => {
+                  onSnooze();
+                  handleClose();
+                }}
                 className="flex items-center px-3 py-1 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors focus:outline-none focus:ring-2 focus:ring-green-300"
+                aria-label="Snooze Notification"
               >
                 <Clock className="w-4 h-4 mr-1" />
                 Snooze
               </button>
               <button
-                onClick={onTakeBreak}
-                className="flex items-center px-3 py-1 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors focus:outline-none focus:ring-2 focus:ring-green-300"
+                onClick={() => {
+                  onTakeBreak();
+                  handleClose();
+                }}
+                className="flex items-center px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300"
+                aria-label="Take Break"
               >
                 <Check className="w-4 h-4 mr-1" />
                 Take Break
@@ -83,4 +114,4 @@ export function Notification({ quote, onClose, onTakeBreak, onSnooze }: Notifica
       )}
     </AnimatePresence>
   );
-}
+};
