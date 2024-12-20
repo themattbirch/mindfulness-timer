@@ -140,15 +140,10 @@ async function snoozeTimer() {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'mindfulnessTimer') {
     const storageData = await getStorageData(['notificationsEnabled', 'soundEnabled', 'timerState']);
-    const { notificationsEnabled, soundEnabled } = storageData;
+    const { notificationsEnabled } = storageData;
     const timerState: TimerState = storageData.timerState || defaultTimerState;
 
     if (timerState.isActive && !timerState.isPaused) {
-      // Play sound if enabled
-      if (soundEnabled) {
-        playSound('complete');
-      }
-
       // Show notification if enabled
       if (notificationsEnabled) {
         const randomQuote = getRandomQuote();
@@ -211,10 +206,4 @@ function getRandomQuote() {
   return quotes[Math.floor(Math.random() * quotes.length)];
 }
 
-// Function to play a sound
-// Function to play a sound
-function playSound(soundName: string) {
-  const audio = new Audio(chrome.runtime.getURL(`sounds/${soundName}.mp3`));
-  audio.play();
-}
-
+// Removed the playSound function from background.ts
