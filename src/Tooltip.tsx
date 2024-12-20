@@ -1,4 +1,5 @@
-// Tooltip.tsx
+// src/Tooltip.tsx
+
 import React from 'react';
 
 interface TooltipProps {
@@ -6,13 +7,13 @@ interface TooltipProps {
   children: React.ReactNode;
 }
 
-export function Tooltip({ text, children }: TooltipProps) {
+export const Tooltip: React.FC<TooltipProps> = ({ text, children }) => {
   return (
-    <div className="relative group inline-block">
+    <div className="relative group">
       {children}
-      <div className="absolute bottom-full mb-2 hidden group-hover:block px-2 py-1 bg-gray-700 text-white text-sm rounded">
+      <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-700 text-white text-xs rounded py-1 px-2 pointer-events-none">
         {text}
       </div>
     </div>
   );
-}
+};

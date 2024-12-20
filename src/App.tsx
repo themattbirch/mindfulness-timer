@@ -9,7 +9,7 @@ import { Settings } from './components/Settings/Settings';
 import { Notification } from './components/Notification/Notification';
 import { getStorageData, setStorageData } from './utils/storage';
 import { playSound } from './utils/sounds';
-import { AppSettings, Quote as QuoteType } from './types/app';
+import { AppSettings, Quote as QuoteType, TimerState } from './types/app';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Joyride, { CallBackProps, Step } from 'react-joyride';
@@ -28,18 +28,20 @@ export default function App() {
     quoteChangeInterval: 60,
     selectedSound: 'gentle-bell',
     timerMode: 'focus',
-    quoteCategory: 'all'
+    quoteCategory: 'all',
+    minimalMode: false
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [notification, setNotification] = useState<{ isVisible: boolean; quote: QuoteType } | null>(null);
-  const [isTimerActive, setIsTimerActive] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const isShrunk = isTimerActive && !isPaused;
-
-  const [timeLeft, setTimeLeft] = useState(getModeSeconds(settings));
-  const prevMode = useRef(settings.timerMode);
-  const prevInterval = useRef(settings.interval);
+  const [timerState, setTimerState] = useState<TimerState>({
+    isActive: false,
+    isPaused: false,
+    timeLeft: 0,
+    mode: 'focus',
+    interval: 15
+  });
+  const isShrunk = timerState.isActive && !timerState.isPaused;
 
   const steps: Step[] = [
     {
@@ -65,6 +67,7 @@ export default function App() {
     if (['finished', 'skipped'].includes(status)) setRun(false);
   }
 
+  // Apply theme based on settings
   useEffect(() => {
     if (settings.theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -73,66 +76,107 @@ export default function App() {
     }
   }, [settings.theme]);
 
+  // Load settings and timer state on mount
   useEffect(() => {
-    const loadSettings = async () => {
+    const loadData = async () => {
       const data = await getStorageData([
         'interval', 'soundEnabled', 'notificationsEnabled', 'theme',
         'soundVolume', 'autoStartTimer', 'showQuotes', 'quoteChangeInterval',
-        'selectedSound', 'timerMode', 'quoteCategory'
+        'selectedSound', 'timerMode', 'quoteCategory',
+        'timerState', 'minimalMode'
       ]);
-      const newSettings = { ...settings, ...data };
+
+      const newSettings: AppSettings = {
+        interval: data.interval ?? 15,
+        soundEnabled: data.soundEnabled ?? true,
+        notificationsEnabled: data.notificationsEnabled ?? true,
+        theme: data.theme ?? 'light',
+        soundVolume: data.soundVolume ?? 50,
+        autoStartTimer: data.autoStartTimer ?? false,
+        showQuotes: data.showQuotes ?? true,
+        quoteChangeInterval: data.quoteChangeInterval ?? 60,
+        selectedSound: data.selectedSound ?? 'gentle-bell',
+        timerMode: data.timerMode ?? 'focus',
+        quoteCategory: data.quoteCategory ?? 'all',
+        minimalMode: data.minimalMode ?? false
+      };
       setSettings(newSettings);
 
-      if (!isTimerActive && !isPaused) {
-        setTimeLeft(getModeSeconds(newSettings));
-      }
+      const storedTimerState: TimerState = data.timerState || {
+        isActive: false,
+        isPaused: false,
+        timeLeft: getModeSeconds(newSettings),
+        mode: 'focus',
+        interval: 15
+      };
+      setTimerState(storedTimerState);
 
-      if (data.autoStartTimer) {
-        setIsTimerActive(true);
+      // If autoStartTimer is enabled, start the timer
+      if (newSettings.autoStartTimer && !storedTimerState.isActive) {
+        handleStartTimer();
       }
     };
-    loadSettings();
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Listen for messages from the background
   useEffect(() => {
-    if (!isTimerActive && !isPaused && (prevMode.current !== settings.timerMode || prevInterval.current !== settings.interval)) {
-      setTimeLeft(getModeSeconds(settings));
-      prevMode.current = settings.timerMode;
-      prevInterval.current = settings.interval;
-    }
-  }, [settings, isTimerActive, isPaused]);
-
-  useEffect(() => {
-    let timer: number | undefined;
-    if (isTimerActive && timeLeft > 0) {
-      timer = window.setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            handleTimerComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (timer !== undefined) {
-        clearInterval(timer);
+    const messageListener = (message: any, sender: any, sendResponse: any) => {
+      switch (message.action) {
+        case 'updateTime':
+          setTimerState(prev => ({
+            ...prev,
+            timeLeft: message.timeLeft
+          }));
+          break;
+        case 'resetTime':
+          setTimerState({
+            isActive: false,
+            isPaused: false,
+            timeLeft: message.timeLeft,
+            mode: 'focus',
+            interval: 15
+          });
+          break;
+        case 'stopTime':
+          setTimerState({
+            isActive: false,
+            isPaused: false,
+            timeLeft: 0,
+            mode: 'focus',
+            interval: 15
+          });
+          break;
+        default:
+          break;
       }
     };
-  }, [isTimerActive, timeLeft]);
 
+    chrome.runtime.onMessage.addListener(messageListener);
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener);
+    };
+  }, []);
+
+  // Handle timer completion
+  // Removed the useEffect that was causing the notification on load
+
+  // Function to handle timer completion
   async function handleTimerComplete() {
-    if (settings.soundEnabled) await playSound('complete');
+    if (settings.soundEnabled) {
+      await playSound('complete');
+    }
     if (settings.notificationsEnabled) {
       const randomQuote = getRandomQuote();
       setNotification({ isVisible: true, quote: randomQuote });
     }
-    setIsTimerActive(false);
-    setIsPaused(false);
-    setTimeLeft(getModeSeconds(settings));
+    // Reset timer state in the background
+    await chrome.runtime.sendMessage({ action: 'resetTimer' });
   }
 
+  // Function to get a random quote
   function getRandomQuote(): QuoteType {
     const quotes: QuoteType[] = [
       {
@@ -163,19 +207,31 @@ export default function App() {
     return quotes[Math.floor(Math.random() * quotes.length)];
   }
 
-  function handleTakeBreak() { setNotification(null); }
+  // Handlers for notification actions
+  function handleTakeBreak() {
+    setNotification(null);
+    // Opening the popup window from the background script instead
+    chrome.runtime.sendMessage({ action: 'takeBreak' });
+  }
+
   function handleSnooze() {
     setNotification(null);
-    setTimeout(() => handleTimerComplete(), 5 * 60 * 1000);
+    chrome.runtime.sendMessage({ action: 'snoozeTimer' });
   }
 
+  // Function to reset the timer
   function handleResetTimer() {
-    setTimeLeft(getModeSeconds(settings));
-    setIsTimerActive(false);
-    setIsPaused(false);
-    chrome.runtime.sendMessage({ action: 'stopTimer' });
+    chrome.runtime.sendMessage({ action: 'resetTimer' });
+    setTimerState({
+      isActive: false,
+      isPaused: false,
+      timeLeft: getModeSeconds(settings),
+      mode: 'focus',
+      interval: 15
+    });
   }
 
+  // Function to calculate mode seconds
   function getModeSeconds(s: AppSettings) {
     switch (s.timerMode) {
       case 'focus': return 25 * 60;
@@ -186,34 +242,69 @@ export default function App() {
     }
   }
 
+  // Handler to start the timer
   function handleStartTimer() {
-    setTimeLeft(getModeSeconds(settings)); // Reset to initial duration when starting fresh
-    setIsTimerActive(true);
-    setIsPaused(false);
-    chrome.runtime.sendMessage({ action: 'startTimer', interval: timeLeft / 60 });
+    chrome.runtime.sendMessage({ action: 'startTimer', interval: settings.interval, mode: settings.timerMode });
+    setTimerState({
+      isActive: true,
+      isPaused: false,
+      timeLeft: getModeSeconds(settings),
+      mode: settings.timerMode,
+      interval: settings.interval
+    });
   }
 
+  // Handler to resume the timer
   function handleResumeTimer() {
-    setIsTimerActive(true);
-    setIsPaused(false);
+    chrome.runtime.sendMessage({ action: 'resumeTimer' });
+    setTimerState(prev => ({
+      ...prev,
+      isActive: true,
+      isPaused: false
+    }));
   }
 
+  // Handler to pause the timer
   function handlePauseTimer() {
-    setIsTimerActive(false);
-    setIsPaused(true);
+    chrome.runtime.sendMessage({ action: 'pauseTimer' });
+    setTimerState(prev => ({
+      ...prev,
+      isActive: false,
+      isPaused: true
+    }));
   }
 
+  // Handler for clicking the minimized circular timer
   const handleCircleClick = () => {
-    setIsTimerActive(false);
-    setIsPaused(true); // Correctly set isPaused to true when pausing
+    handlePauseTimer(); // Utilize the existing pause handler
   };
 
+  // Global click handler to pause the timer when clicking outside
   function handleGlobalClick() {
-    if (isTimerActive && !isPaused) {
+    if (timerState.isActive && !timerState.isPaused) {
       handlePauseTimer();
     }
   }
 
+  // Manage timeLeft updates while the popup is open
+  useEffect(() => {
+    let interval: number | undefined;
+
+    if (timerState.isActive && timerState.timeLeft > 0) {
+      interval = window.setInterval(() => {
+        setTimerState(prev => ({
+          ...prev,
+          timeLeft: prev.timeLeft > 0 ? prev.timeLeft - 1 : 0
+        }));
+      }, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [timerState.isActive, timerState.timeLeft]);
+
+  // Apply container styles based on timer state
   const containerStyle: CSSProperties = isShrunk
     ? {
         width: 72,
@@ -258,8 +349,13 @@ export default function App() {
           onSettingsChange={async (newSettings) => {
             setSettings(newSettings);
             await setStorageData(newSettings);
-            if (!isTimerActive && !isPaused) {
-              setTimeLeft(getModeSeconds(newSettings));
+            if (!timerState.isActive && !timerState.isPaused) {
+              setTimerState(prev => ({
+                ...prev,
+                timeLeft: getModeSeconds(newSettings),
+                interval: newSettings.interval,
+                mode: newSettings.timerMode
+              }));
             }
           }}
         />
@@ -270,29 +366,53 @@ export default function App() {
               // Minimal mode: show the circular timer
               <div
                 className={`w-16 h-16 bg-primary rounded-full flex items-center justify-center cursor-pointer transition-transform ${
-                  timeLeft === 0 ? 'animate-ping' : ''
+                  timerState.timeLeft === 0 ? 'animate-ping' : ''
                 }`}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleCircleClick();
                 }}
               >
-                <span className="text-white font-bold text-sm">{formatTime(timeLeft)}</span>
+                <span className="text-white font-bold text-sm">{formatTime(timerState.timeLeft)}</span>
               </div>
             ) : (
-              // Full mode: settings button, and full UI
+              // Full mode: show theme toggle, settings button, and full UI
               <div className="relative border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 space-y-4 bg-transparent">
-                   {/* Settings Button */}
-                  <button
-                    className="settings-button absolute top-2 right-2 p-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full transition-colors z-10"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsSettingsOpen(true);
-                    }}
-                    aria-label="Open Settings"
-                  >
-                    <SettingsIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                  </button>
+                {/* Settings and Theme Toggle Container */}
+                <div className="absolute top-2 right-2 flex flex-col items-center space-y-2 z-10">
+                  {/* Settings Button */}
+                  <Tooltip text="Open Settings">
+                    <button
+                      className="settings-button p-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsSettingsOpen(true);
+                      }}
+                      aria-label="Open Settings"
+                    >
+                      <SettingsIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                    </button>
+                  </Tooltip>
+
+                  {/* Theme Toggle Button */}
+                  <Tooltip text="Toggle Light/Dark Theme">
+                    <button
+                      className="theme-toggle-button p-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const newTheme = settings.theme === 'dark' ? 'light' : 'dark';
+                        setSettings(prev => ({
+                          ...prev,
+                          theme: newTheme
+                        }));
+                        chrome.storage.sync.set({ theme: newTheme }); // Persist theme change
+                      }}
+                      aria-label="Toggle Theme"
+                    >
+                      {settings.theme === 'dark' ? '☀️' : '🌙'}
+                    </button>
+                  </Tooltip>
+                </div>
 
                 <h1 className="text-3xl font-bold text-center">
                   Mindfulness Timer
@@ -300,11 +420,11 @@ export default function App() {
 
                 <div className="actual-timer-start-button timer-container flex flex-col items-center space-y-2">
                   <Timer
-                    timeLeft={timeLeft}
-                    isActive={isTimerActive}
-                    isPaused={isPaused}
-                    mode={settings.timerMode}
-                    onStart={isPaused ? handleResumeTimer : handleStartTimer}
+                    timeLeft={timerState.timeLeft}
+                    isActive={timerState.isActive}
+                    isPaused={timerState.isPaused}
+                    mode={timerState.mode}
+                    onStart={timerState.isPaused ? handleResumeTimer : handleStartTimer}
                     onStop={handlePauseTimer}
                     onComplete={handleTimerComplete}
                     isShrunk={false}
@@ -320,6 +440,7 @@ export default function App() {
 
                 {settings.showQuotes && (
                   <div className="flex justify-center">
+                    <Tooltip text="Reset Timer">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -330,6 +451,7 @@ export default function App() {
                       >
                         Reset Timer
                       </button>
+                    </Tooltip>
                   </div>
                 )}
 

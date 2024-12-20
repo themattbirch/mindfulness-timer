@@ -1,26 +1,26 @@
 // src/utils/storage.ts
 
-import { AppSettings } from '../types/app';
+import { StorageData } from '../types/app';
 
 /**
- * Fetches settings from Chrome storage.
- * @param keys - Array of keys from AppSettings to retrieve.
- * @returns A promise that resolves to a partial AppSettings object.
+ * Fetches data from Chrome storage.
+ * @param keys - Array of keys from StorageData to retrieve.
+ * @returns A promise that resolves to an object containing the requested keys.
  */
-export async function getStorageData(keys: (keyof AppSettings)[]): Promise<Partial<AppSettings>> {
+export async function getStorageData<K extends keyof StorageData>(keys: K[]): Promise<Pick<StorageData, K>> {
   return new Promise((resolve) => {
     chrome.storage.sync.get(keys, (result) => {
-      resolve(result as Partial<AppSettings>);
+      resolve(result as Pick<StorageData, K>);
     });
   });
 }
 
 /**
- * Sets settings in Chrome storage.
- * @param data - Partial AppSettings object to set.
+ * Sets data in Chrome storage.
+ * @param data - An object containing key-value pairs from StorageData to set.
  * @returns A promise that resolves when the data is set.
  */
-export async function setStorageData(data: Partial<AppSettings>): Promise<void> {
+export async function setStorageData<K extends keyof StorageData>(data: Pick<StorageData, K>): Promise<void> {
   return new Promise((resolve) => {
     chrome.storage.sync.set(data, () => {
       resolve();

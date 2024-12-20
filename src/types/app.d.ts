@@ -1,3 +1,5 @@
+// src/types/app.d.ts
+
 export interface AppSettings {
   interval: number;
   soundEnabled: boolean;
@@ -15,8 +17,17 @@ export interface AppSettings {
   minimalMode?: boolean;
 }
 
+export interface TimerState {
+  isActive: boolean;
+  isPaused: boolean;
+  timeLeft: number; // in seconds
+  mode: 'focus' | 'shortBreak' | 'longBreak' | 'custom';
+  interval: number; // in minutes
+}
+
 export interface StorageData extends AppSettings {
   statistics: Statistics;
+  timerState: TimerState;
 }
 
 export interface Quote {
