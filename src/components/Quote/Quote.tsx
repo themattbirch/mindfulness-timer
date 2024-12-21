@@ -52,7 +52,7 @@ export function Quote({ changeInterval, category = 'all', onFavorite }: QuotePro
   }, [changeInterval, category, currentQuote]);
 
   return (
-    <div className="relative bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center transition-all">
+    <div className="relative quote-area bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center transition-all">
       <div
         className={`transition-opacity duration-500 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
       >

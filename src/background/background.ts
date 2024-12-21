@@ -8,9 +8,9 @@ import { TimerState } from '../types/app';
 const defaultTimerState: TimerState = {
   isActive: false,
   isPaused: false,
-  timeLeft: 0,
-  mode: 'focus',
-  interval: 15
+  timeLeft: 15 * 60, // 15 minutes in seconds
+  mode: 'custom', // Set to 'custom' to align with default interval
+  interval: 15 // minutes
 };
 
 // Initialize settings and timer state on installation
@@ -77,7 +77,7 @@ async function startTimer(intervalInMinutes: number, mode: 'focus' | 'shortBreak
     interval: intervalInMinutes
   };
   await setStorageData({ timerState });
-
+  
   // Create an alarm for when the timer completes
   chrome.alarms.create('mindfulnessTimer', { delayInMinutes: intervalInMinutes });
 }
@@ -140,10 +140,15 @@ async function snoozeTimer() {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'mindfulnessTimer') {
     const storageData = await getStorageData(['notificationsEnabled', 'soundEnabled', 'timerState']);
-    const { notificationsEnabled } = storageData;
+    const { notificationsEnabled, soundEnabled } = storageData;
     const timerState: TimerState = storageData.timerState || defaultTimerState;
 
     if (timerState.isActive && !timerState.isPaused) {
+      // Play sound if enabled
+      if (soundEnabled) {
+        // Removed playSound function from background.ts as Audio API is not available here
+      }
+
       // Show notification if enabled
       if (notificationsEnabled) {
         const randomQuote = getRandomQuote();
@@ -163,6 +168,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
       // Reset timer state
       await setStorageData({ timerState: defaultTimerState });
+
+      // Notify the popup to play the sound
+      chrome.runtime.sendMessage({ action: 'timerCompleted' });
     }
   }
 });
