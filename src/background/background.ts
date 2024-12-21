@@ -10,7 +10,8 @@ const defaultTimerState: TimerState = {
   isPaused: false,
   timeLeft: 15 * 60, // 15 minutes in seconds
   mode: 'custom', // Set to 'custom' to align with default interval
-  interval: 15 // minutes
+  interval: 15, // minutes
+  isBlinking: false // Added property
 };
 
 // Initialize settings and timer state on installation
@@ -18,8 +19,16 @@ chrome.runtime.onInstalled.addListener(() => {
   setStorageData({
     interval: 15, // minutes
     soundEnabled: true,
-    notificationsEnabled: true,
+    notificationsEnabled: true, // Optional: Can be removed if not needed elsewhere
     theme: 'light',
+    soundVolume: 50,
+    autoStartTimer: false,
+    showQuotes: true,
+    quoteChangeInterval: 60,
+    selectedSound: 'gentle-bell',
+    timerMode: 'custom',
+    quoteCategory: 'all',
+    minimalMode: false,
     timerState: defaultTimerState
   });
 });
@@ -50,16 +59,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       await snoozeTimer();
       sendResponse({ status: 'Timer snoozed for 5 minutes' });
       break;
-    case 'takeBreak':
-      // Open the popup window when 'Take Break' is clicked
-      chrome.windows.create({
-        url: chrome.runtime.getURL("index.html"),
-        type: "popup",
-        width: 400,
-        height: 600
-      });
-      sendResponse({ status: 'Break window opened' });
-      break;
+    // Removed 'takeBreak' action as notifications are no longer present
     default:
       sendResponse({ status: 'Unknown action' });
   }
@@ -74,7 +74,8 @@ async function startTimer(intervalInMinutes: number, mode: 'focus' | 'shortBreak
     isPaused: false,
     timeLeft: intervalInMinutes * 60,
     mode: mode,
-    interval: intervalInMinutes
+    interval: intervalInMinutes,
+    isBlinking: false // Added property
   };
   await setStorageData({ timerState });
   
@@ -99,6 +100,7 @@ async function pauseTimer(timerState: TimerState) {
             ...timerState,
             isPaused: true,
             timeLeft: remainingTime
+            // isBlinking remains unchanged
           };
           await setStorageData({ timerState: updatedTimerState });
         }
@@ -130,7 +132,8 @@ async function snoozeTimer() {
       isActive: true,
       timeLeft: 5 * 60,
       mode: 'shortBreak',
-      interval: 5
+      interval: 5,
+      isBlinking: false // Added property
     }
   });
   chrome.alarms.create('mindfulnessTimer', { delayInMinutes: 5 });
@@ -139,79 +142,22 @@ async function snoozeTimer() {
 // Handle alarm for timer completion
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'mindfulnessTimer') {
-    const storageData = await getStorageData(['notificationsEnabled', 'soundEnabled', 'timerState']);
-    const { notificationsEnabled, soundEnabled } = storageData;
+    const storageData = await getStorageData(['soundEnabled', 'timerState']);
+    const { soundEnabled } = storageData;
     const timerState: TimerState = storageData.timerState || defaultTimerState;
 
     if (timerState.isActive && !timerState.isPaused) {
       // Play sound if enabled
       if (soundEnabled) {
-        // Removed playSound function from background.ts as Audio API is not available here
-      }
-
-      // Show notification if enabled
-      if (notificationsEnabled) {
-        const randomQuote = getRandomQuote();
-        const notificationId = `mindfulnessReminder-${uuidv4()}`;
-        chrome.notifications.create(notificationId, {
-          type: 'basic',
-          iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-          title: 'Time for a Mindful Break',
-          message: `${randomQuote.text} — ${randomQuote.author}`,
-          buttons: [
-            { title: 'Take Break' },
-            { title: 'Snooze' }
-          ],
-          requireInteraction: true
-        });
+        // Sound playback is handled in the popup via 'timerCompleted' message
+        // No action needed here
       }
 
       // Reset timer state
       await setStorageData({ timerState: defaultTimerState });
 
-      // Notify the popup to play the sound
+      // Notify the popup to play the sound and start blinking
       chrome.runtime.sendMessage({ action: 'timerCompleted' });
     }
   }
 });
-
-// Handle notification button clicks
-chrome.notifications.onButtonClicked.addListener(async (notificationId, buttonIndex) => {
-  if (notificationId.startsWith('mindfulnessReminder-')) {
-    if (buttonIndex === 0) {
-      // Take Break: Open the popup window
-      chrome.runtime.sendMessage({ action: 'takeBreak' });
-      chrome.notifications.clear(notificationId);
-    } else if (buttonIndex === 1) {
-      // Snooze
-      chrome.notifications.clear(notificationId);
-      await snoozeTimer();
-    }
-  }
-});
-
-// Function to get a random quote
-function getRandomQuote() {
-  const quotes = [
-    {
-      text: "Take a deep breath and relax.",
-      author: "Unknown"
-    },
-    {
-      text: "Stay present and mindful.",
-      author: "Thich Nhat Hanh"
-    },
-    {
-      text: "The present moment is filled with joy and happiness. If you are attentive, you will see it.",
-      author: "Thich Nhat Hanh"
-    },
-    {
-      text: "Mindfulness isn't difficult, we just need to remember to do it.",
-      author: "Sharon Salzberg"
-    },
-    // Add more quotes as desired
-  ];
-  return quotes[Math.floor(Math.random() * quotes.length)];
-}
-
-// Removed the playSound function from background.ts

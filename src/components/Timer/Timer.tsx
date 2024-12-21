@@ -1,15 +1,19 @@
+// src/components/Timer/Timer.tsx
+
 import React from 'react';
 import './Timer.css';
+import { TimerState } from '../../types/app'; // Import TimerState if needed
 
 interface TimerProps {
   timeLeft: number;
   isActive: boolean;
   isPaused: boolean;
-  mode: string;
+  mode: 'focus' | 'shortBreak' | 'longBreak' | 'custom'; // Updated type
   onStart: () => void;
   onStop: () => void;
   onComplete: () => void;
   isShrunk: boolean;
+  isBlinking: boolean; // Added property
 }
 
 export const Timer: React.FC<TimerProps> = ({
@@ -20,7 +24,8 @@ export const Timer: React.FC<TimerProps> = ({
   onStart,
   onStop,
   onComplete,
-  isShrunk
+  isShrunk,
+  isBlinking
 }) => {
   const handleClick = () => {
     if (isActive && !isPaused) {
@@ -31,7 +36,7 @@ export const Timer: React.FC<TimerProps> = ({
   };
 
   return (
-    <div className="timer-wrapper flex flex-col items-center text-center">
+    <div className={`timer-wrapper flex flex-col items-center text-center ${isBlinking ? 'blinking' : ''}`}>
       <div className="timer-display" onClick={handleClick} role="button" tabIndex={0}>
         <div className="timer-text text-4xl font-bold">
           {formatTime(timeLeft)}
@@ -40,7 +45,7 @@ export const Timer: React.FC<TimerProps> = ({
 
       {/* 
         If not shrunk => show normal Start/Pause/Resume.
-        If shrunk => we show "||" below the countdown in App.tsx already, so no extra text here.
+        If shrunk => "||" is handled in App.tsx, so no extra text here.
       */}
       {!isShrunk && (
         <div className="timer-buttons flex justify-center gap-4 mt-4">
@@ -82,7 +87,7 @@ export const Timer: React.FC<TimerProps> = ({
   );
 };
 
-// Helper
+// Helper Function
 function formatTime(seconds: number) {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
   const s = (seconds % 60).toString().padStart(2, '0');

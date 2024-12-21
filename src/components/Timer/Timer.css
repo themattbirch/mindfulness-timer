@@ -73,3 +73,14 @@
 .resume-button:hover {
   background-color: #4b5563; /* Darker gray on hover */
 }
+
+/* Blinking Animation */
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.blinking {
+  animation: blink 1s infinite;
+}

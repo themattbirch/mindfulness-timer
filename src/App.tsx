@@ -6,7 +6,6 @@ import './App.css';
 import { Timer } from './components/Timer/Timer';
 import { Quote as QuoteComponent } from './components/Quote/Quote';
 import { Settings } from './components/Settings/Settings';
-import { Notification } from './components/Notification/Notification';
 import { getStorageData, setStorageData } from './utils/storage';
 import { AppSettings, Quote as QuoteType, TimerState } from './types/app';
 import { ToastContainer } from 'react-toastify';
@@ -15,15 +14,17 @@ import Joyride, { CallBackProps, Step } from 'react-joyride';
 import { v4 as uuidv4 } from 'uuid';
 import { Tooltip } from './Tooltip';
 
-// Desired full-mode popup dimensions
+// Desired popup dimensions
 const FULL_WIDTH = 320;
 const FULL_HEIGHT = 600;
+const ENLARGED_WIDTH = 500; // Adjust as needed
+const ENLARGED_HEIGHT = 400; // Adjust as needed
 
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>({
     interval: 15,
     soundEnabled: true,
-    notificationsEnabled: true,
+    notificationsEnabled: true, // or remove if no longer needed
     theme: 'light',
     soundVolume: 50,
     autoStartTimer: false,
@@ -36,7 +37,10 @@ export default function App() {
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [notification, setNotification] = useState<{ isVisible: boolean; quote: QuoteType } | null>(null);
+
+  // We won't actually enlarge the popup in this minimal version,
+  // but let's keep the isEnlarged logic in case you want it later.
+  const [isEnlarged, setIsEnlarged] = useState(false);
 
   // Timer state
   const [timerState, setTimerState] = useState<TimerState>({
@@ -44,7 +48,8 @@ export default function App() {
     isPaused: false,
     timeLeft: 0,
     mode: 'focus',
-    interval: 15
+    interval: 15,
+    isBlinking: false
   });
 
   // Minimal mode if timer is active & not paused
@@ -59,7 +64,7 @@ export default function App() {
     },
     {
       target: '.card-area',
-      content: 'Click anywhere on the window to pause the timer when it\'s running.',
+      content: 'Click anywhere on the window to pause the timer when it’s running.',
       disableBeacon: true
     },
     {
@@ -124,16 +129,18 @@ export default function App() {
       };
       setSettings(newSettings);
 
-      // If no timerState stored, default
+      // If no timerState stored, use defaults
       const storedTimerState: TimerState = data.timerState || {
         isActive: false,
         isPaused: false,
         timeLeft: getModeSeconds(newSettings),
         mode: newSettings.timerMode,
-        interval: newSettings.interval
+        interval: newSettings.interval,
+        isBlinking: false
       };
       setTimerState(storedTimerState);
 
+      // Auto-start if enabled
       if (newSettings.autoStartTimer && !storedTimerState.isActive) {
         handleStartTimer();
       }
@@ -141,34 +148,40 @@ export default function App() {
     loadData();
   }, []);
 
-  // Listen for background messages
+  // Listen for messages from background
   useEffect(() => {
     const messageListener = (message: any) => {
       switch (message.action) {
         case 'updateTime':
           setTimerState(prev => ({ ...prev, timeLeft: message.timeLeft }));
           break;
+
         case 'resetTime':
           setTimerState({
             isActive: false,
             isPaused: false,
             timeLeft: message.timeLeft,
             mode: 'focus',
-            interval: 15
+            interval: 15,
+            isBlinking: false
           });
           break;
+
         case 'stopTime':
           setTimerState({
             isActive: false,
             isPaused: false,
             timeLeft: 0,
             mode: 'focus',
-            interval: 15
+            interval: 15,
+            isBlinking: false
           });
           break;
+
         case 'timerCompleted':
           handleTimerComplete();
           break;
+
         default:
           break;
       }
@@ -179,89 +192,72 @@ export default function App() {
     };
   }, []);
 
-  // Timer decrement in popup
+  // Local timer decrement if active
   useEffect(() => {
-    let interval: number | undefined;
+    let intervalId: number | undefined;
     if (timerState.isActive && timerState.timeLeft > 0) {
-      interval = window.setInterval(() => {
-        setTimerState(prev => ({
-          ...prev,
-          timeLeft: prev.timeLeft > 0 ? prev.timeLeft - 1 : 0
-        }));
+      intervalId = window.setInterval(() => {
+        setTimerState(prev => {
+          if (prev.timeLeft <= 1) {
+            // Timer is about to complete
+            handleTimerComplete();
+            return { ...prev, timeLeft: 0 };
+          }
+          return { ...prev, timeLeft: prev.timeLeft - 1 };
+        });
       }, 1000);
     }
     return () => {
-      if (interval) clearInterval(interval);
+      if (intervalId) clearInterval(intervalId);
     };
   }, [timerState.isActive, timerState.timeLeft]);
 
-  // Timer complete
+  // Timer complete logic
   async function handleTimerComplete() {
     if (settings.soundEnabled) {
-      playSound(settings.selectedSound); // Play the user-selected sound
+      playSound(settings.selectedSound);
     }
-    if (settings.notificationsEnabled) {
-      const quote = getRandomQuote();
-      setNotification({ isVisible: true, quote });
+    // Start blinking
+    setTimerState(prev => ({ ...prev, isBlinking: true }));
+  }
+
+  // Utility: format time
+  function formatTime(seconds: number) {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  // Utility: compute mode seconds
+  function getModeSeconds(s: AppSettings) {
+    switch (s.timerMode) {
+      case 'focus':
+        return 25 * 60;
+      case 'shortBreak':
+        return 5 * 60;
+      case 'longBreak':
+        return 15 * 60;
+      case 'custom':
+        return s.interval * 60;
+      default:
+        return 15 * 60;
     }
-    // Reset in background
-    chrome.runtime.sendMessage({ action: 'resetTimer' });
   }
 
-  // Utility for random quote
-  function getRandomQuote(): QuoteType {
-    const quotes: QuoteType[] = [
-      {
-        id: uuidv4(),
-        text: "The present moment is filled with joy and happiness. If you are attentive, you will see it.",
-        author: "Thich Nhat Hanh",
-        category: "presence"
-      },
-      {
-        id: uuidv4(),
-        text: "Take a deep breath and relax.",
-        author: "Unknown",
-        category: "relaxation"
-      },
-      {
-        id: uuidv4(),
-        text: "Stay present and mindful.",
-        author: "Thich Nhat Hanh",
-        category: "mindfulness"
-      },
-      {
-        id: uuidv4(),
-        text: "Mindfulness isn't difficult, we just need to remember to do it.",
-        author: "Sharon Salzberg",
-        category: "mindfulness"
-      }
-    ];
-    return quotes[Math.floor(Math.random() * quotes.length)];
-  }
-
-  // Notification handlers
-  function handleTakeBreak() {
-    setNotification(null);
-    chrome.runtime.sendMessage({ action: 'takeBreak' });
-  }
-  function handleSnooze() {
-    setNotification(null);
-    chrome.runtime.sendMessage({ action: 'snoozeTimer' });
-  }
-
-  // Reset
+  // Reset Timer
   function handleResetTimer() {
     chrome.runtime.sendMessage({ action: 'resetTimer' });
     setTimerState({
       isActive: false,
       isPaused: false,
       timeLeft: getModeSeconds(settings),
-      mode: 'focus',
-      interval: 15
+      mode: settings.timerMode,
+      interval: settings.interval,
+      isBlinking: false
     });
   }
 
-  // Start/resume/pause
+  // Start Timer
   function handleStartTimer() {
     chrome.runtime.sendMessage({ action: 'startTimer', interval: settings.interval, mode: settings.timerMode });
     setTimerState({
@@ -269,33 +265,43 @@ export default function App() {
       isPaused: false,
       timeLeft: getModeSeconds(settings),
       mode: settings.timerMode,
-      interval: settings.interval
+      interval: settings.interval,
+      isBlinking: false
     });
   }
 
+  // Resume Timer
   function handleResumeTimer() {
     chrome.runtime.sendMessage({ action: 'resumeTimer' });
     setTimerState(prev => ({ ...prev, isActive: true, isPaused: false }));
   }
 
+  // Pause Timer
   function handlePauseTimer() {
     chrome.runtime.sendMessage({ action: 'pauseTimer' });
     setTimerState(prev => ({ ...prev, isActive: false, isPaused: true }));
   }
 
-  // Minimal mode circle click => pause
-  const handleCircleClick = () => {
-    handlePauseTimer();
-  };
+  // Circle click in minimal mode
+  function handleCircleClick() {
+    // If the timer is 0:00 and blinking => reset
+    if (timerState.timeLeft === 0 && timerState.isBlinking) {
+      handleResetTimer();
+      setTimerState(prev => ({ ...prev, isBlinking: false }));
+    } else {
+      // Otherwise, just pause
+      handlePauseTimer();
+    }
+  }
 
-  // Global click => pause
+  // Global container click => pause if active
   function handleGlobalClick() {
     if (timerState.isActive && !timerState.isPaused) {
       handlePauseTimer();
     }
   }
 
-  // Audio
+  // Sound playback
   const playSound = useCallback((soundName: string) => {
     const soundUrl = chrome.runtime.getURL(`sounds/${soundName}.mp3`);
     console.log(`Attempting to play sound: ${soundName} from URL: ${soundUrl}`);
@@ -312,24 +318,15 @@ export default function App() {
       });
   }, [settings.soundVolume]);
 
-  // getModeSeconds
-  function getModeSeconds(s: AppSettings) {
-    switch (s.timerMode) {
-      case 'focus':
-        return 25 * 60;
-      case 'shortBreak':
-        return 5 * 60;
-      case 'longBreak':
-        return 15 * 60;
-      case 'custom':
-        return s.interval * 60;
-      default:
-        return 15 * 60;
-    }
-  }
-
-  // Container style: 320×600 in full mode, 72×72 in minimal
-  const containerStyle: CSSProperties = isShrunk
+  // Container style logic
+  const containerStyle: CSSProperties = isEnlarged
+    ? {
+        width: ENLARGED_WIDTH,
+        height: ENLARGED_HEIGHT,
+        overflowY: 'auto',
+        transition: 'width 0.5s ease, height 0.5s ease'
+      }
+    : isShrunk
     ? {
         width: 72,
         height: 72,
@@ -343,12 +340,11 @@ export default function App() {
         width: FULL_WIDTH,
         height: FULL_HEIGHT,
         overflowY: 'auto',
-        transition: 'width 0.3s ease, height 0.3s ease'
+        transition: 'width 0.5s ease, height 0.5s ease'
       };
 
   return (
     <div style={containerStyle} onClick={handleGlobalClick}>
-      {/* Joyride Onboarding */}
       <Joyride
         steps={!isShrunk ? steps : []}
         run={!isShrunk && run}
@@ -362,7 +358,7 @@ export default function App() {
         scrollToFirstStep
       />
 
-      {/* Outer container: fill full area */}
+      {/* Outer container */}
       <div
         className={`w-full h-full bg-white dark:bg-gray-900 text-black dark:text-white ${
           isShrunk ? 'flex items-center justify-center' : 'relative'
@@ -387,11 +383,10 @@ export default function App() {
           }}
         />
 
-        {/* If the settings modal is not open, show timer UI */}
         {!isSettingsOpen && (
           <>
             {isShrunk ? (
-              // Minimal Mode Circle
+              // Minimal Mode (small circle)
               <div
                 className={`w-16 h-16 bg-primary rounded-full flex flex-col items-center justify-center cursor-pointer transition-transform ${
                   timerState.timeLeft === 0 ? 'animate-ping' : ''
@@ -404,16 +399,16 @@ export default function App() {
                 <span className="text-white font-bold text-sm">
                   {formatTime(timerState.timeLeft)}
                 </span>
-                {/* Subtle pause indicator "||" below */}
+                {/* Show a subtle pause indicator if running */}
                 {timerState.isActive && !timerState.isPaused && (
                   <span className="text-xs text-white mt-1">||</span>
                 )}
               </div>
             ) : (
-              // Full Mode "card" area
+              // Full Mode
               <div className="mx-auto my-auto w-full h-full flex flex-col items-center justify-center p-4">
                 <div className="relative border card-area border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-6 w-full max-w-sm bg-transparent flex flex-col items-center">
-                  {/* Top-left: Theme Toggle, Top-right: Settings */}
+                  {/* Top-left: Theme Toggle */}
                   <div className="absolute top-2 left-2 z-10">
                     <Tooltip text="Switch Theme">
                       <button
@@ -431,6 +426,7 @@ export default function App() {
                     </Tooltip>
                   </div>
 
+                  {/* Top-right: Settings */}
                   <div className="absolute top-2 right-2 z-10">
                     <Tooltip text="Open Settings">
                       <button
@@ -461,6 +457,7 @@ export default function App() {
                       onStop={handlePauseTimer}
                       onComplete={handleTimerComplete}
                       isShrunk={false}
+                      isBlinking={timerState.isBlinking}
                     />
 
                     {/* Show Quote if enabled */}
@@ -474,16 +471,16 @@ export default function App() {
 
                   {/* Reset & Onboarding Buttons */}
                   <div className="flex flex-col items-center space-y-2 mt-4">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleResetTimer();
-                        }}
-                        className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500"
-                        aria-label="Reset Timer"
-                      >
-                        Reset Timer
-                      </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleResetTimer();
+                      }}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500"
+                      aria-label="Reset Timer"
+                    >
+                      Reset Timer
+                    </button>
 
                     <Tooltip text="Start the guided tour of the app">
                       <button
@@ -502,22 +499,6 @@ export default function App() {
             )}
           </>
         )}
-
-        {/* Notification fade transition */}
-        <div
-          className={`transition-opacity duration-300 ease-in-out ${
-            notification?.isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
-        >
-          {notification?.isVisible && (
-            <Notification
-              quote={notification.quote}
-              onClose={() => setNotification(null)}
-              onTakeBreak={handleTakeBreak}
-              onSnooze={handleSnooze}
-            />
-          )}
-        </div>
       </div>
 
       <ToastContainer position="bottom-right" autoClose={3000} />

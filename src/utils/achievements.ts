@@ -27,5 +27,41 @@ export const achievements: Achievement[] = [
     target: 7,
     progress: 0,
     unlockedAt: null
+  },
+  {
+    id: 'early-bird',
+    name: 'Early Bird',
+    description: 'Complete a session before 9 AM.',
+    icon: '🌅',
+    target: 1,
+    progress: 0,
+    unlockedAt: null
+  },
+  {
+    id: 'different-modes',
+    name: 'Mode Explorer',
+    description: 'Try all timer modes (Focus, Short Break, Long Break).',
+    icon: '🔄',
+    target: 3,
+    progress: 0,
+    unlockedAt: null
+  },
+  {
+    id: 'full-hour',
+    name: 'Deep Dive',
+    description: 'Complete a 60-minute focus session.',
+    icon: '⏱️',
+    target: 1,
+    progress: 0,
+    unlockedAt: null
+  },
+  {
+    id: 'weekend-warrior',
+    name: 'Weekend Warrior',
+    description: 'Complete sessions on both Saturday and Sunday.',
+    icon: '🌟',
+    target: 2,
+    progress: 0,
+    unlockedAt: null
   }
 ];

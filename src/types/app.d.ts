@@ -23,6 +23,7 @@ export interface TimerState {
   timeLeft: number; // in seconds
   mode: 'focus' | 'shortBreak' | 'longBreak' | 'custom';
   interval: number; // in minutes
+  isBlinking: boolean; // Added property
 }
 
 export interface StorageData extends AppSettings {
