@@ -1,3 +1,5 @@
+// src/App.tsx
+
 import React, { useState, useEffect, useCallback, CSSProperties } from 'react';
 import { Settings as SettingsIcon } from 'lucide-react';
 import './App.css';
@@ -196,7 +198,7 @@ export default function App() {
   // Timer complete
   async function handleTimerComplete() {
     if (settings.soundEnabled) {
-      playSound('complete');
+      playSound(settings.selectedSound); // Play the user-selected sound
     }
     if (settings.notificationsEnabled) {
       const quote = getRandomQuote();
@@ -295,9 +297,19 @@ export default function App() {
 
   // Audio
   const playSound = useCallback((soundName: string) => {
-    const audio = new Audio(chrome.runtime.getURL(`sounds/${soundName}.mp3`));
+    const soundUrl = chrome.runtime.getURL(`sounds/${soundName}.mp3`);
+    console.log(`Attempting to play sound: ${soundName} from URL: ${soundUrl}`);
+    
+    const audio = new Audio(soundUrl);
     audio.volume = settings.soundVolume / 100;
-    audio.play().catch(err => console.error("Error playing sound:", err));
+    
+    audio.play()
+      .then(() => {
+        console.log(`Successfully played sound: ${soundName}`);
+      })
+      .catch(err => {
+        console.error(`Failed to play sound "${soundName}":`, err);
+      });
   }, [settings.soundVolume]);
 
   // getModeSeconds
