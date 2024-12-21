@@ -1,10 +1,10 @@
 {
   "extensionName": {
-    "message": "Mindfulness Timer",
+    "message": "Mindful Browsing Timer",
     "description": "The name of the extension"
   },
   "extensionDescription": {
-    "message": "A mindful browsing companion that provides periodic reminders with inspirational quotes",
+    "message": "Stay focused and mindful while browsing with customizable timers, inspiring quotes, and gentle reminders to take breaks",
     "description": "The description of the extension"
   }
 }
