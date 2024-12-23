@@ -1,5 +1,3 @@
-// src/App.tsx
-
 import React, { useState, useEffect, useCallback, CSSProperties } from 'react';
 import { Settings as SettingsIcon } from 'lucide-react';
 import './App.css';
@@ -17,14 +15,13 @@ import { Tooltip } from './Tooltip';
 // Desired popup dimensions
 const FULL_WIDTH = 320;
 const FULL_HEIGHT = 600;
-const ENLARGED_WIDTH = 500; // Adjust as needed
-const ENLARGED_HEIGHT = 400; // Adjust as needed
+const ENLARGED_WIDTH = 500; 
+const ENLARGED_HEIGHT = 400; 
 
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>({
     interval: 15,
     soundEnabled: true,
-    notificationsEnabled: true, // or remove if no longer needed
     theme: 'light',
     soundVolume: 50,
     autoStartTimer: false,
@@ -38,8 +35,6 @@ export default function App() {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // We won't actually enlarge the popup in this minimal version,
-  // but let's keep the isEnlarged logic in case you want it later.
   const [isEnlarged, setIsEnlarged] = useState(false);
 
   // Timer state
@@ -100,7 +95,6 @@ export default function App() {
       const data = await getStorageData([
         'interval',
         'soundEnabled',
-        'notificationsEnabled',
         'theme',
         'soundVolume',
         'autoStartTimer',
@@ -116,7 +110,6 @@ export default function App() {
       const newSettings: AppSettings = {
         interval: data.interval ?? 15,
         soundEnabled: data.soundEnabled ?? true,
-        notificationsEnabled: data.notificationsEnabled ?? true,
         theme: data.theme ?? 'light',
         soundVolume: data.soundVolume ?? 50,
         autoStartTimer: data.autoStartTimer ?? false,
@@ -212,14 +205,18 @@ export default function App() {
     };
   }, [timerState.isActive, timerState.timeLeft]);
 
+  const [quoteChangeCounter, setQuoteChangeCounter] = useState(0);
+
   // Timer complete logic
   async function handleTimerComplete() {
-    if (settings.soundEnabled) {
-      playSound(settings.selectedSound);
-    }
-    // Start blinking
-    setTimerState(prev => ({ ...prev, isBlinking: true }));
+  if (settings.soundEnabled) {
+    playSound(settings.selectedSound);
   }
+  // Start blinking
+  setTimerState(prev => ({ ...prev, isBlinking: true }));
+  // Force quote change
+  setQuoteChangeCounter(prev => prev + 1);
+}
 
   // Utility: format time
   function formatTime(seconds: number) {
@@ -410,7 +407,7 @@ export default function App() {
                 <div className="relative border card-area border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-6 w-full max-w-sm bg-transparent flex flex-col items-center">
                   {/* Top-left: Theme Toggle */}
                   <div className="absolute top-2 left-2 z-10">
-                    <Tooltip text="Switch Theme">
+                    <Tooltip text="Theme">
                       <button
                         className="theme-toggle-button p-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full transition-colors"
                         onClick={(e) => {
@@ -428,7 +425,7 @@ export default function App() {
 
                   {/* Top-right: Settings */}
                   <div className="absolute top-2 right-2 z-10">
-                    <Tooltip text="Open Settings">
+                    <Tooltip text="Settings">
                       <button
                         className="settings-button p-1 bg-gray-300 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full transition-colors"
                         onClick={(e) => {
@@ -443,7 +440,7 @@ export default function App() {
                   </div>
 
                   <h1 className="text-3xl font-bold text-center mb-4">
-                    Mindfulness Timer
+                    Mindful Browsing Timer
                   </h1>
 
                   {/* Timer + Quotes */}
@@ -462,11 +459,12 @@ export default function App() {
 
                     {/* Show Quote if enabled */}
                     {settings.showQuotes && (
-                      <QuoteComponent
-                        changeInterval={settings.quoteChangeInterval}
-                        category={settings.quoteCategory}
-                      />
-                    )}
+            <QuoteComponent
+             changeInterval={settings.quoteChangeInterval}
+            category={settings.quoteCategory}
+            forceChange={quoteChangeCounter} 
+            />
+            )}
                   </div>
 
                   {/* Reset & Onboarding Buttons */}
@@ -482,7 +480,7 @@ export default function App() {
                       Reset Timer
                     </button>
 
-                    <Tooltip text="Start the guided tour of the app">
+                    <Tooltip text="Guided tour of the app">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

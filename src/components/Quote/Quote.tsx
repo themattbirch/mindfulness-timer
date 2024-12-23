@@ -6,6 +6,7 @@ interface QuoteProps {
   changeInterval: number;
   category?: string; 
   onFavorite?: (quote: QuoteType) => void;
+  forceChange?: number;
 }
 
 const defaultQuotes: QuoteType[] = [
@@ -89,16 +90,16 @@ const defaultQuotes: QuoteType[] = [
   }
 ];
 
-export function Quote({ changeInterval, category = 'all', onFavorite }: QuoteProps) {
+export function Quote({ changeInterval, category = 'all', onFavorite, forceChange = 0 }: QuoteProps) {
   const [currentQuote, setCurrentQuote] = useState<QuoteType>(defaultQuotes[0]);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
+  // Add new useEffect for forced changes
   useEffect(() => {
-    const filteredQuotes = category === 'all' ? defaultQuotes : defaultQuotes.filter(q => q.category === category);
-    if (filteredQuotes.length === 0) return;
-    const interval = setInterval(() => {
+    if (forceChange > 0) {
       setIsTransitioning(true);
       setTimeout(() => {
+        const filteredQuotes = category === 'all' ? defaultQuotes : defaultQuotes.filter(q => q.category === category);
         let newQuote = currentQuote;
         while (newQuote.id === currentQuote.id) {
           newQuote = filteredQuotes[Math.floor(Math.random() * filteredQuotes.length)];
@@ -106,10 +107,8 @@ export function Quote({ changeInterval, category = 'all', onFavorite }: QuotePro
         setCurrentQuote(newQuote);
         setIsTransitioning(false);
       }, 500);
-    }, changeInterval * 1000);
-
-    return () => clearInterval(interval);
-  }, [changeInterval, category, currentQuote]);
+    }
+  }, [forceChange, category]);
 
   return (
     <div className="relative quote-area bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center transition-all">

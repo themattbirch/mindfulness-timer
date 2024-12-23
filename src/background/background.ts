@@ -1,5 +1,3 @@
-// src/background/background.ts
-
 import { getStorageData, setStorageData } from '../utils/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { TimerState } from '../types/app';
@@ -8,18 +6,17 @@ import { TimerState } from '../types/app';
 const defaultTimerState: TimerState = {
   isActive: false,
   isPaused: false,
-  timeLeft: 15 * 60, // 15 minutes in seconds
-  mode: 'custom', // Set to 'custom' to align with default interval
-  interval: 15, // minutes
-  isBlinking: false // Added property
+  timeLeft: 15 * 60, 
+  mode: 'custom',
+  interval: 15, 
+  isBlinking: false 
 };
 
 // Initialize settings and timer state on installation
 chrome.runtime.onInstalled.addListener(() => {
   setStorageData({
-    interval: 15, // minutes
+    interval: 15,
     soundEnabled: true,
-    notificationsEnabled: true, // Optional: Can be removed if not needed elsewhere
     theme: 'light',
     soundVolume: 50,
     autoStartTimer: false,
@@ -59,12 +56,11 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       await snoozeTimer();
       sendResponse({ status: 'Timer snoozed for 5 minutes' });
       break;
-    // Removed 'takeBreak' action as notifications are no longer present
     default:
       sendResponse({ status: 'Unknown action' });
   }
 
-  return true; // Indicates that the response is sent asynchronously
+  return true; 
 });
 
 // Function to start the timer
@@ -75,7 +71,7 @@ async function startTimer(intervalInMinutes: number, mode: 'focus' | 'shortBreak
     timeLeft: intervalInMinutes * 60,
     mode: mode,
     interval: intervalInMinutes,
-    isBlinking: false // Added property
+    isBlinking: false 
   };
   await setStorageData({ timerState });
   
@@ -133,7 +129,7 @@ async function snoozeTimer() {
       timeLeft: 5 * 60,
       mode: 'shortBreak',
       interval: 5,
-      isBlinking: false // Added property
+      isBlinking: false 
     }
   });
   chrome.alarms.create('mindfulnessTimer', { delayInMinutes: 5 });
@@ -147,16 +143,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const timerState: TimerState = storageData.timerState || defaultTimerState;
 
     if (timerState.isActive && !timerState.isPaused) {
-      // Play sound if enabled
       if (soundEnabled) {
-        // Sound playback is handled in the popup via 'timerCompleted' message
-        // No action needed here
+        // Sound playback is handled in the popup
       }
-
-      // Reset timer state
       await setStorageData({ timerState: defaultTimerState });
-
-      // Notify the popup to play the sound and start blinking
       chrome.runtime.sendMessage({ action: 'timerCompleted' });
     }
   }

@@ -1,5 +1,3 @@
-// src/components/Settings/SoundSelector.tsx
-
 import React, { useState, useEffect } from 'react';
 import { Play } from 'lucide-react';
 import { soundManager, availableSounds } from '../../utils/sounds';
@@ -31,7 +29,7 @@ export function SoundSelector({
   };
 
   return (
-    <div className="space-y-4 pl-2 w-full"> {/* Added pl-2 for left alignment */}
+    <div className="space-y-4 pl-2 w-full">
       <div className="flex flex-col space-y-2">
         <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
           Select Your Sound:
@@ -49,7 +47,7 @@ export function SoundSelector({
           />
         </div>
 
-        <div className="space-y-3"> {/* Increased spacing between sound options */}
+        <div className="space-y-3"> 
           {availableSounds.map((sound) => (
             <div key={sound.id} className="flex items-center space-x-3 py-1">
               <input

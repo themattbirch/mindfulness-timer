@@ -2,7 +2,7 @@ interface Sound {
   id: string;
   name: string;
   url: string;
-  category: 'notification' | 'ambient' | 'bell';
+  category: 'meditation' | 'ambient' | 'bell';
 }
 
 const defaultSounds: Sound[] = [
@@ -16,7 +16,7 @@ const defaultSounds: Sound[] = [
     id: 'meditation-bowl',
     name: 'Meditation Bowl',
     url: 'sounds/meditation-bowl.mp3',
-    category: 'notification'
+    category: 'meditation'
   },
   {
     id: 'forest-ambient',

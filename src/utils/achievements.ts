@@ -4,7 +4,7 @@ export const achievements: Achievement[] = [
   {
     id: 'first-session',
     name: 'First Session',
-    description: 'Complete your first mindfulness session.',
+    description: 'Complete your first mindful browsing session.',
     icon: '🎉',
     target: 1,
     progress: 0,
@@ -13,7 +13,7 @@ export const achievements: Achievement[] = [
   {
     id: 'ten-sessions',
     name: 'Consistent Practitioner',
-    description: 'Complete 10 mindfulness sessions.',
+    description: 'Complete 10 mindful browsing sessions.',
     icon: '🏆',
     target: 10,
     progress: 0,

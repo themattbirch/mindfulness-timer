@@ -1,5 +1,3 @@
-// src/utils/storage.ts
-
 import { StorageData } from '../types/app';
 
 /**

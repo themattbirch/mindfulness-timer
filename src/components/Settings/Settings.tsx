@@ -89,17 +89,6 @@ export function Settings({ isOpen, onClose, settings, onSettingsChange }: Settin
             <label htmlFor="enableSounds" className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable Sounds</label>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <input
-              id="enableNotifications"
-              type="checkbox"
-              checked={settings.notificationsEnabled}
-              onChange={(e) => handleChange('notificationsEnabled', e.target.checked)}
-              className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
-            />
-            <label htmlFor="enableNotifications" className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable Notifications</label>
-          </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Quote Category</label>
             <select

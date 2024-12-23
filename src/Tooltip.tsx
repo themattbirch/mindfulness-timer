@@ -1,5 +1,3 @@
-// src/Tooltip.tsx
-
 import React from 'react';
 
 interface TooltipProps {

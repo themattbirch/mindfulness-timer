@@ -1,19 +1,17 @@
-// src/components/Timer/Timer.tsx
-
 import React from 'react';
 import './Timer.css';
-import { TimerState } from '../../types/app'; // Import TimerState if needed
+import { TimerState } from '../../types/app'; 
 
 interface TimerProps {
   timeLeft: number;
   isActive: boolean;
   isPaused: boolean;
-  mode: 'focus' | 'shortBreak' | 'longBreak' | 'custom'; // Updated type
+  mode: 'focus' | 'shortBreak' | 'longBreak' | 'custom'; 
   onStart: () => void;
   onStop: () => void;
   onComplete: () => void;
   isShrunk: boolean;
-  isBlinking: boolean; // Added property
+  isBlinking: boolean;
 }
 
 export const Timer: React.FC<TimerProps> = ({
@@ -45,7 +43,7 @@ export const Timer: React.FC<TimerProps> = ({
 
       {/* 
         If not shrunk => show normal Start/Pause/Resume.
-        If shrunk => "||" is handled in App.tsx, so no extra text here.
+        If shrunk => "||" is handled in App.tsx.
       */}
       {!isShrunk && (
         <div className="timer-buttons flex justify-center gap-4 mt-4">

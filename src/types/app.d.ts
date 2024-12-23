@@ -1,29 +1,24 @@
-// src/types/app.d.ts
-
 export interface AppSettings {
   interval: number;
   soundEnabled: boolean;
-  notificationsEnabled: boolean;
   theme: 'light' | 'dark';
   soundVolume: number;
   autoStartTimer: boolean;
   showQuotes: boolean;
   quoteChangeInterval: number;
   selectedSound: string;
-  // Add 'custom' as a valid timer mode
   timerMode: 'focus' | 'shortBreak' | 'longBreak' | 'custom';
   quoteCategory: string;
-  // Add minimalMode to fix the missing property errors
   minimalMode?: boolean;
 }
 
 export interface TimerState {
   isActive: boolean;
   isPaused: boolean;
-  timeLeft: number; // in seconds
+  timeLeft: number;
   mode: 'focus' | 'shortBreak' | 'longBreak' | 'custom';
-  interval: number; // in minutes
-  isBlinking: boolean; // Added property
+  interval: number; 
+  isBlinking: boolean; 
 }
 
 export interface StorageData extends AppSettings {
