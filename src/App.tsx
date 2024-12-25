@@ -5,18 +5,17 @@ import { Timer } from './components/Timer/Timer';
 import { Quote as QuoteComponent } from './components/Quote/Quote';
 import { Settings } from './components/Settings/Settings';
 import { getStorageData, setStorageData } from './utils/storage';
-import { AppSettings, Quote as QuoteType, TimerState } from './types/app';
+import { AppSettings, TimerState } from './types/app';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Joyride, { CallBackProps, Step } from 'react-joyride';
 import { v4 as uuidv4 } from 'uuid';
 import { Tooltip } from './Tooltip';
 
-// Desired popup dimensions
 const FULL_WIDTH = 320;
 const FULL_HEIGHT = 600;
-const ENLARGED_WIDTH = 500; 
-const ENLARGED_HEIGHT = 400; 
+const ENLARGED_WIDTH = 500;
+const ENLARGED_HEIGHT = 400;
 
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>({
@@ -34,7 +33,6 @@ export default function App() {
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
   const [isEnlarged, setIsEnlarged] = useState(false);
 
   // Timer state
@@ -44,7 +42,9 @@ export default function App() {
     timeLeft: 0,
     mode: 'focus',
     interval: 15,
-    isBlinking: false
+    isBlinking: false,
+    startTime: null,
+    endTime: null
   });
 
   // Minimal mode if timer is active & not paused
@@ -129,7 +129,9 @@ export default function App() {
         timeLeft: getModeSeconds(newSettings),
         mode: newSettings.timerMode,
         interval: newSettings.interval,
-        isBlinking: false
+        isBlinking: false,
+        startTime: null,
+        endTime: null
       };
       setTimerState(storedTimerState);
 
@@ -148,7 +150,6 @@ export default function App() {
         case 'updateTime':
           setTimerState(prev => ({ ...prev, timeLeft: message.timeLeft }));
           break;
-
         case 'resetTime':
           setTimerState({
             isActive: false,
@@ -156,10 +157,11 @@ export default function App() {
             timeLeft: message.timeLeft,
             mode: 'focus',
             interval: 15,
-            isBlinking: false
+            isBlinking: false,
+            startTime: null,
+            endTime: null
           });
           break;
-
         case 'stopTime':
           setTimerState({
             isActive: false,
@@ -167,14 +169,14 @@ export default function App() {
             timeLeft: 0,
             mode: 'focus',
             interval: 15,
-            isBlinking: false
+            isBlinking: false,
+            startTime: null,
+            endTime: null
           });
           break;
-
         case 'timerCompleted':
           handleTimerComplete();
           break;
-
         default:
           break;
       }
@@ -185,38 +187,66 @@ export default function App() {
     };
   }, []);
 
-  // Local timer decrement if active
+  /**
+   * Local timer decrement if active:
+   * - We re-check the background storage for endTime
+   * - If endTime is in the future, we compute (endTime - Date.now()) / 1000
+   * - This ensures the timer keeps running if the user closes the popup
+   */
   useEffect(() => {
     let intervalId: number | undefined;
-    if (timerState.isActive && timerState.timeLeft > 0) {
-      intervalId = window.setInterval(() => {
-        setTimerState(prev => {
-          if (prev.timeLeft <= 1) {
-            // Timer is about to complete
+    if (timerState.isActive && !timerState.isPaused) {
+      intervalId = window.setInterval(async () => {
+        const data = await getStorageData(['timerState']);
+        const current = data.timerState as TimerState;
+
+        // If there's no current timer or the user paused it, stop interval
+        if (!current || !current.isActive || current.isPaused) {
+          clearInterval(intervalId);
+          return;
+        }
+
+        // If we have an endTime, use that to compute the remaining time
+        if (typeof current.endTime === 'number') {
+          const now = Date.now();
+          const timeLeftMs = current.endTime - now;
+          let newTimeLeft = Math.max(0, Math.floor(timeLeftMs / 1000));
+
+          // If timeLeft is 0 or negative => timer is done
+          if (newTimeLeft <= 0) {
+            newTimeLeft = 0;
+            clearInterval(intervalId);
             handleTimerComplete();
-            return { ...prev, timeLeft: 0 };
           }
-          return { ...prev, timeLeft: prev.timeLeft - 1 };
-        });
+
+          setTimerState(prev => ({
+            ...prev,
+            timeLeft: newTimeLeft,
+            isActive: current.isActive,
+            isPaused: current.isPaused,
+            startTime: current.startTime ?? null,
+            endTime: current.endTime ?? null
+          }));
+        }
       }, 1000);
     }
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [timerState.isActive, timerState.timeLeft]);
+  }, [timerState.isActive, timerState.isPaused]);
 
   const [quoteChangeCounter, setQuoteChangeCounter] = useState(0);
 
   // Timer complete logic
   async function handleTimerComplete() {
-  if (settings.soundEnabled) {
-    playSound(settings.selectedSound);
+    if (settings.soundEnabled) {
+      playSound(settings.selectedSound);
+    }
+    // Start blinking
+    setTimerState(prev => ({ ...prev, isActive: false, isPaused: false, timeLeft: 0, isBlinking: true }));
+    // Force quote change
+    setQuoteChangeCounter(prev => prev + 1);
   }
-  // Start blinking
-  setTimerState(prev => ({ ...prev, isBlinking: true }));
-  // Force quote change
-  setQuoteChangeCounter(prev => prev + 1);
-}
 
   // Utility: format time
   function formatTime(seconds: number) {
@@ -250,20 +280,28 @@ export default function App() {
       timeLeft: getModeSeconds(settings),
       mode: settings.timerMode,
       interval: settings.interval,
-      isBlinking: false
+      isBlinking: false,
+      startTime: null,
+      endTime: null
     });
   }
 
   // Start Timer
   function handleStartTimer() {
-    chrome.runtime.sendMessage({ action: 'startTimer', interval: settings.interval, mode: settings.timerMode });
+    chrome.runtime.sendMessage({
+      action: 'startTimer',
+      interval: settings.interval,
+      mode: settings.timerMode
+    });
     setTimerState({
       isActive: true,
       isPaused: false,
       timeLeft: getModeSeconds(settings),
       mode: settings.timerMode,
       interval: settings.interval,
-      isBlinking: false
+      isBlinking: false,
+      startTime: null,
+      endTime: null
     });
   }
 
@@ -276,7 +314,7 @@ export default function App() {
   // Pause Timer
   function handlePauseTimer() {
     chrome.runtime.sendMessage({ action: 'pauseTimer' });
-    setTimerState(prev => ({ ...prev, isActive: false, isPaused: true }));
+    setTimerState(prev => ({ ...prev, isPaused: true }));
   }
 
   // Circle click in minimal mode
@@ -302,17 +340,11 @@ export default function App() {
   const playSound = useCallback((soundName: string) => {
     const soundUrl = chrome.runtime.getURL(`sounds/${soundName}.mp3`);
     console.log(`Attempting to play sound: ${soundName} from URL: ${soundUrl}`);
-    
     const audio = new Audio(soundUrl);
     audio.volume = settings.soundVolume / 100;
-    
-    audio.play()
-      .then(() => {
-        console.log(`Successfully played sound: ${soundName}`);
-      })
-      .catch(err => {
-        console.error(`Failed to play sound "${soundName}":`, err);
-      });
+    audio.play().catch(err => {
+      console.error(`Failed to play sound "${soundName}":`, err);
+    });
   }, [settings.soundVolume]);
 
   // Container style logic
@@ -459,12 +491,12 @@ export default function App() {
 
                     {/* Show Quote if enabled */}
                     {settings.showQuotes && (
-            <QuoteComponent
-             changeInterval={settings.quoteChangeInterval}
-            category={settings.quoteCategory}
-            forceChange={quoteChangeCounter} 
-            />
-            )}
+                      <QuoteComponent
+                        changeInterval={settings.quoteChangeInterval}
+                        category={settings.quoteCategory}
+                        forceChange={quoteChangeCounter}
+                      />
+                    )}
                   </div>
 
                   {/* Reset & Onboarding Buttons */}
@@ -502,11 +534,4 @@ export default function App() {
       <ToastContainer position="bottom-right" autoClose={3000} />
     </div>
   );
-}
-
-// Helper: format time
-function formatTime(seconds: number) {
-  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-  const s = (seconds % 60).toString().padStart(2, '0');
-  return `${m}:${s}`;
 }

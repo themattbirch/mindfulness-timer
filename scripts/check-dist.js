@@ -62,10 +62,12 @@ function checkDist() {
 
   // Check key files
   console.log("\nKey files:");
-  ["index.html", "popup.js", "background.js"].forEach((file) => {
-    const exists = fs.existsSync(resolve(buildPath, file));
-    console.log(`${file}: ${exists ? "✅" : "❌"}`);
-  });
+  ["index.html", "popup.js", "background.js", "content-script.js"].forEach(
+    (file) => {
+      const exists = fs.existsSync(resolve(buildPath, file));
+      console.log(`${file}: ${exists ? "✅" : "❌"}`);
+    }
+  );
 }
 
 checkDist();

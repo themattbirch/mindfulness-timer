@@ -19,6 +19,9 @@ export interface TimerState {
   mode: 'focus' | 'shortBreak' | 'longBreak' | 'custom';
   interval: number; 
   isBlinking: boolean; 
+  startTime: number | null;
+  endTime: number | null;  
+
 }
 
 export interface StorageData extends AppSettings {

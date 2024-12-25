@@ -7,20 +7,17 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        popup: resolve(__dirname, 'index.html'), 
-        background: resolve(__dirname, 'src/background/background.ts'), 
+        background: resolve(__dirname, 'src/background/background.ts'),
+        'content-script': resolve(__dirname, 'src/content/content-script.ts'),
+        popup: resolve(__dirname, 'index.html')
       },
       output: {
-        entryFileNames: '[name].js', 
-        chunkFileNames: '[name].js',
-        assetFileNames: '[name].[ext]',
-      },
+        entryFileNames: '[name].js',
+        chunkFileNames: '[name].js'
+      }
     },
     outDir: 'dist',
-    emptyOutDir: true, 
+    emptyOutDir: true
   },
-  esbuild: {
-    logOverride: { 'module level directives cause errors': 'silent' },
-  },
-  publicDir: 'public',
+  publicDir: 'public'
 });
