@@ -398,7 +398,7 @@ export default function App() {
                 </span>
                 {/* Show a subtle pause indicator if running */}
                 {timerState.isActive && !timerState.isPaused && (
-                  <span className="text-xs text-white mt-1">||</span>
+                  <span className="text-xs text-white mt-1">Pause</span>
                 )}
               </div>
             ) : (
