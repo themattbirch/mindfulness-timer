@@ -54,7 +54,7 @@ export default function App() {
   const steps: Step[] = [
     {
       target: '.start-button',
-      content: 'Click the green button below to start your Mindfulness Timer session.',
+      content: 'Click the green button above to start your Mindfulness Timer session.',
       disableBeacon: true
     },
     {
