@@ -18,6 +18,13 @@ const CIRCLE_SIZE = 80;
 const ENLARGED_WIDTH = 600;  // For enlarged state
 const ENLARGED_HEIGHT = 400; // For enlarged state
 
+const Z_INDEX = {
+  BASE: 1000,
+  JOYRIDE: 1100,
+  OVERLAY: 1050
+};
+
+
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>({
     interval: 15,
@@ -368,11 +375,11 @@ useEffect(() => {
       position: 'fixed',
       width: ENLARGED_WIDTH,
       height: ENLARGED_HEIGHT,
+      zIndex: Z_INDEX.BASE,
       minWidth: '600px',  // Add minimum dimensions
       minHeight: '400px',
       overflowY: 'hidden',
       transition: 'width 0.5s ease, height 0.5s ease',
-      zIndex: 999999,
       borderRadius: '12px',
       boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
     }
@@ -386,7 +393,7 @@ useEffect(() => {
       justifyContent: 'center',
       overflow: 'hidden',
       transition: 'width 0.3s ease, height 0.3s ease',
-      zIndex: 999999,
+      zIndex: Z_INDEX.BASE,
       borderRadius: '50%',
       boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
       padding: 0  // Remove padding in shrunk mode
@@ -401,7 +408,7 @@ useEffect(() => {
       overflow: 'hidden', 
       overflowY: 'hidden',
       transition: 'width 0.5s ease, height 0.5s ease',
-      zIndex: 999999,
+      zIndex: Z_INDEX.BASE,
       borderRadius: '12px',
       boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
       padding: '20px'
@@ -412,17 +419,31 @@ useEffect(() => {
 return (
   <div style={containerStyle} onClick={handleGlobalClick}>
     <Joyride
-      steps={!isShrunk ? steps : []}
-      run={!isShrunk && run}
-      callback={handleJoyrideCallback}
-      showSkipButton
-      continuous
-      styles={{ options: { zIndex: 10000 } }}
-      showProgress
-      hideCloseButton
-      disableOverlayClose
-      scrollToFirstStep
-    />
+  steps={!isShrunk ? steps : []}
+  run={!isShrunk && run}
+  callback={handleJoyrideCallback}
+  showSkipButton
+  continuous
+  styles={{
+    options: {
+      zIndex: Z_INDEX.JOYRIDE,
+      overlayColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    overlay: {
+      zIndex: Z_INDEX.OVERLAY
+    },
+    tooltip: {
+      zIndex: Z_INDEX.JOYRIDE
+    },
+    spotlight: {
+      zIndex: Z_INDEX.OVERLAY
+    }
+  }}
+  showProgress
+  hideCloseButton
+  disableOverlayClose
+  scrollToFirstStep
+/>
 
     {/* Single outer container */}
     <div
