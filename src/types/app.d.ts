@@ -69,3 +69,9 @@ export interface Achievement {
   progress: number;
   target: number;
 }
+
+export interface QuoteProps {
+  changeInterval: number;
+  category: string;
+  forceChange: number;
+}

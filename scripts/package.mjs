@@ -39,13 +39,13 @@ function validateManifest(manifestPath) {
     "manifest_version",
     "name",
     "version",
-    "action",
     "permissions",
     "background",
     "icons",
     "description",
     // Add other required fields as per your manifest version
   ];
+
   requiredFields.forEach((field) => {
     if (!manifest.hasOwnProperty(field)) {
       throw new Error(`manifest.json is missing required field: ${field}`);

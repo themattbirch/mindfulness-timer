@@ -12,10 +12,11 @@ import Joyride, { CallBackProps, Step } from 'react-joyride';
 import { v4 as uuidv4 } from 'uuid';
 import { Tooltip } from './Tooltip';
 
-const FULL_WIDTH = 320;
-const FULL_HEIGHT = 600;
-const ENLARGED_WIDTH = 500;
-const ENLARGED_HEIGHT = 400;
+const FULL_WIDTH = 380;  // Slightly smaller width
+const FULL_HEIGHT = 600; // Reduced height for better proportions
+const CIRCLE_SIZE = 80;
+const ENLARGED_WIDTH = 600;  // For enlarged state
+const ENLARGED_HEIGHT = 400; // For enlarged state
 
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>({
@@ -49,6 +50,20 @@ export default function App() {
 
   // Minimal mode if timer is active & not paused
   const isShrunk = timerState.isActive && !timerState.isPaused;
+
+useEffect(() => {
+  if (isShrunk) {
+    document.documentElement.style.width = `${CIRCLE_SIZE}px`;
+    document.documentElement.style.height = `${CIRCLE_SIZE}px`;
+    document.body.style.width = `${CIRCLE_SIZE}px`;
+    document.body.style.height = `${CIRCLE_SIZE}px`;
+  } else {
+    document.documentElement.style.width = `${FULL_WIDTH}px`;
+    document.documentElement.style.height = `${FULL_HEIGHT}px`;
+    document.body.style.width = `${FULL_WIDTH}px`;
+    document.body.style.height = `${FULL_HEIGHT}px`;
+  }
+}, [isShrunk]);
 
   // Joyride steps
   const steps: Step[] = [
@@ -349,180 +364,202 @@ export default function App() {
 
   // Container style logic
   const containerStyle: CSSProperties = isEnlarged
-    ? {
-        width: ENLARGED_WIDTH,
-        height: ENLARGED_HEIGHT,
-        overflowY: 'auto',
-        transition: 'width 0.5s ease, height 0.5s ease'
-      }
-    : isShrunk
-    ? {
-        width: 72,
-        height: 72,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-        transition: 'width 0.3s ease, height 0.3s ease'
-      }
-    : {
-        width: FULL_WIDTH,
-        height: FULL_HEIGHT,
-        overflowY: 'auto',
-        transition: 'width 0.5s ease, height 0.5s ease'
-      };
+  ? {
+      position: 'fixed',
+      width: ENLARGED_WIDTH,
+      height: ENLARGED_HEIGHT,
+      minWidth: '600px',  // Add minimum dimensions
+      minHeight: '400px',
+      overflowY: 'hidden',
+      transition: 'width 0.5s ease, height 0.5s ease',
+      zIndex: 999999,
+      borderRadius: '12px',
+      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+    }
+  : isShrunk
+  ? {
+      position: 'fixed',
+      width: `${CIRCLE_SIZE}px`,
+      height: `${CIRCLE_SIZE}px`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      transition: 'width 0.3s ease, height 0.3s ease',
+      zIndex: 999999,
+      borderRadius: '50%',
+      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      padding: 0  // Remove padding in shrunk mode
+    }
+  : {
+       position: 'fixed',
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden', 
+      overflowY: 'hidden',
+      transition: 'width 0.5s ease, height 0.5s ease',
+      zIndex: 999999,
+      borderRadius: '12px',
+      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      padding: '20px'
+    };
 
-  return (
-    <div style={containerStyle} onClick={handleGlobalClick}>
-      <Joyride
-        steps={!isShrunk ? steps : []}
-        run={!isShrunk && run}
-        callback={handleJoyrideCallback}
-        showSkipButton
-        continuous
-        styles={{ options: { zIndex: 10000 } }}
-        showProgress
-        hideCloseButton
-        disableOverlayClose
-        scrollToFirstStep
+
+// The return statement remains the same but with a background color on the outer container:
+return (
+  <div style={containerStyle} onClick={handleGlobalClick}>
+    <Joyride
+      steps={!isShrunk ? steps : []}
+      run={!isShrunk && run}
+      callback={handleJoyrideCallback}
+      showSkipButton
+      continuous
+      styles={{ options: { zIndex: 10000 } }}
+      showProgress
+      hideCloseButton
+      disableOverlayClose
+      scrollToFirstStep
+    />
+
+    {/* Single outer container */}
+    <div
+      className={`w-full h-full bg-white dark:bg-gray-900 text-black dark:text-white ${
+        isShrunk ? 'flex items-center justify-center' : 'relative'
+      }`}
+    >
+      {/* Settings Modal */}
+      <Settings
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        settings={settings}
+        onSettingsChange={async (newSettings) => {
+          setSettings(newSettings);
+          await setStorageData(newSettings);
+          if (!timerState.isActive && !timerState.isPaused) {
+            setTimerState(prev => ({
+              ...prev,
+              timeLeft: getModeSeconds(newSettings),
+              interval: newSettings.interval,
+              mode: newSettings.timerMode
+            }));
+          }
+        }}
       />
 
-      {/* Outer container */}
-      <div
-        className={`w-full h-full bg-white dark:bg-gray-900 text-black dark:text-white ${
-          isShrunk ? 'flex items-center justify-center' : 'relative'
-        }`}
-      >
-        {/* Settings Modal */}
-        <Settings
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          settings={settings}
-          onSettingsChange={async (newSettings) => {
-            setSettings(newSettings);
-            await setStorageData(newSettings);
-            if (!timerState.isActive && !timerState.isPaused) {
-              setTimerState(prev => ({
-                ...prev,
-                timeLeft: getModeSeconds(newSettings),
-                interval: newSettings.interval,
-                mode: newSettings.timerMode
-              }));
-            }
+      {!isSettingsOpen && (
+        <>
+          {isShrunk ? (
+            // Minimal Mode (small circle)
+            <div
+              className={`w-20 h-20 bg-primary rounded-full flex flex-col items-center justify-center cursor-pointer transition-transform ${
+                timerState.timeLeft === 0 ? 'animate-ping' : ''
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCircleClick();
+              }}
+            >
+              <span className="text-white font-bold text-sm">
+                {formatTime(timerState.timeLeft)}
+              </span>
+              {timerState.isActive && !timerState.isPaused && (
+                <span className="text-xs text-white mt-1">Pause</span>
+              )}
+            </div>
+          ) : (
+            // Full Mode
+         <div className="w-full max-w-sm flex flex-col">
+  <div className="relative border card-area border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 bg-white dark:bg-gray-900 flex flex-col items-center">
+    {/* Top buttons container */}
+    <div className="absolute top-4 w-full flex justify-between px-4">
+  {/* Theme Toggle */}
+  <Tooltip text="Theme">
+    <button
+      className="theme-toggle-button p-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full transition-colors"
+      onClick={(e) => {
+        e.stopPropagation();
+        const newTheme = settings.theme === 'dark' ? 'light' : 'dark';
+        setSettings(prev => ({ ...prev, theme: newTheme }));
+        chrome.storage.sync.set({ theme: newTheme });
+      }}
+      aria-label="Toggle Theme"
+    >
+      {settings.theme === 'dark' ? '☀️' : '🌙'}
+    </button>
+  </Tooltip>
+
+  {/* Settings */}
+  <Tooltip text="Settings">
+    <button
+      className="settings-button p-1 bg-gray-300 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full transition-colors"
+      onClick={(e) => {
+        e.stopPropagation();
+        setIsSettingsOpen(true);
+      }}
+      aria-label="Open Settings"
+    >
+      <SettingsIcon className="w-6 h-6 text-gray-600 dark:text-gray-300" />
+    </button>
+  </Tooltip>
+</div>
+
+                 <h1 className="text-3xl font-bold text-center mt-12 mb-6">
+      Mindful Browsing Timer
+    </h1>
+
+                  {/* Timer + Quotes section - adjust spacing */}
+    <div className="flex flex-col items-center space-y-4 w-full">
+      <Timer
+        timeLeft={timerState.timeLeft}
+        isActive={timerState.isActive}
+        isPaused={timerState.isPaused}
+        mode={timerState.mode}
+        onStart={timerState.isPaused ? handleResumeTimer : handleStartTimer}
+        onStop={handlePauseTimer}
+        onComplete={handleTimerComplete}
+        isShrunk={false}
+        isBlinking={timerState.isBlinking}
+      />
+
+      {/* Quote with adjusted spacing */}
+        {settings.showQuotes && (
+        <div className="mt-2">
+          <QuoteComponent
+            changeInterval={settings.quoteChangeInterval}
+            category={settings.quoteCategory}
+            forceChange={quoteChangeCounter}
+          />
+        </div>
+      )}
+    </div>
+
+                 {/* Buttons container - adjust spacing */}
+      <div className="flex flex-col items-center space-y-3 mt-4">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleResetTimer();
           }}
-        />
+          className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500"
+          aria-label="Reset Timer"
+        >
+          Reset Timer
+        </button>
 
-        {!isSettingsOpen && (
-          <>
-            {isShrunk ? (
-              // Minimal Mode (small circle)
-              <div
-                className={`w-16 h-16 bg-primary rounded-full flex flex-col items-center justify-center cursor-pointer transition-transform ${
-                  timerState.timeLeft === 0 ? 'animate-ping' : ''
-                }`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCircleClick();
-                }}
-              >
-                <span className="text-white font-bold text-sm">
-                  {formatTime(timerState.timeLeft)}
-                </span>
-                {/* Show a subtle pause indicator if running */}
-                {timerState.isActive && !timerState.isPaused && (
-                  <span className="text-xs text-white mt-1">Pause</span>
-                )}
-              </div>
-            ) : (
-              // Full Mode
-              <div className="mx-auto my-auto w-full h-full flex flex-col items-center justify-center p-4">
-                <div className="relative border card-area border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-6 w-full max-w-sm bg-transparent flex flex-col items-center">
-                  {/* Top-left: Theme Toggle */}
-                  <div className="absolute top-2 left-2 z-10">
-                    <Tooltip text="Theme">
-                      <button
-                        className="theme-toggle-button p-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const newTheme = settings.theme === 'dark' ? 'light' : 'dark';
-                          setSettings(prev => ({ ...prev, theme: newTheme }));
-                          chrome.storage.sync.set({ theme: newTheme });
-                        }}
-                        aria-label="Toggle Theme"
-                      >
-                        {settings.theme === 'dark' ? '☀️' : '🌙'}
-                      </button>
-                    </Tooltip>
-                  </div>
-
-                  {/* Top-right: Settings */}
-                  <div className="absolute top-2 right-2 z-10">
-                    <Tooltip text="Settings">
-                      <button
-                        className="settings-button p-1 bg-gray-300 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsSettingsOpen(true);
-                        }}
-                        aria-label="Open Settings"
-                      >
-                        <SettingsIcon className="w-6 h-6 text-gray-600 dark:text-gray-300" />
-                      </button>
-                    </Tooltip>
-                  </div>
-
-                  <h1 className="text-3xl font-bold text-center mb-4">
-                    Mindful Browsing Timer
-                  </h1>
-
-                  {/* Timer + Quotes */}
-                  <div className="flex flex-col items-center space-y-4">
-                    <Timer
-                      timeLeft={timerState.timeLeft}
-                      isActive={timerState.isActive}
-                      isPaused={timerState.isPaused}
-                      mode={timerState.mode}
-                      onStart={timerState.isPaused ? handleResumeTimer : handleStartTimer}
-                      onStop={handlePauseTimer}
-                      onComplete={handleTimerComplete}
-                      isShrunk={false}
-                      isBlinking={timerState.isBlinking}
-                    />
-
-                    {/* Show Quote if enabled */}
-                    {settings.showQuotes && (
-                      <QuoteComponent
-                        changeInterval={settings.quoteChangeInterval}
-                        category={settings.quoteCategory}
-                        forceChange={quoteChangeCounter}
-                      />
-                    )}
-                  </div>
-
-                  {/* Reset & Onboarding Buttons */}
-                  <div className="flex flex-col items-center space-y-2 mt-4">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleResetTimer();
-                      }}
-                      className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500"
-                      aria-label="Reset Timer"
-                    >
-                      Reset Timer
-                    </button>
-
-                    <Tooltip text="Guided tour of the app">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRun(true);
-                        }}
-                        className="px-4 py-2 bg-secondary hover:bg-secondary-light text-white rounded-lg shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-secondary-light"
-                      >
-                        Start Onboarding
-                      </button>
-                    </Tooltip>
+        <Tooltip text="Guided tour of the app">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setRun(true);
+            }}
+            className="px-4 py-2 bg-secondary hover:bg-secondary-light text-white rounded-lg shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-secondary-light"
+          >
+            Start Onboarding
+          </button>
+        </Tooltip>
                   </div>
                 </div>
               </div>

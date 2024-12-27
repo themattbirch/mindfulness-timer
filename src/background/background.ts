@@ -106,6 +106,8 @@ function refreshActivity(): void {
 /**
  * D) Listen for messages
  */
+
+ 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     refreshActivity();
@@ -115,6 +117,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const ts: TimerState = data.timerState || defaultTimerState;
 
     switch (message.action) {
+      // Handle global restart
+case 'globalRestart':
+  await resetTimer();
+  // Broadcast restart to all tabs
+  const allTabs = await chrome.tabs.query({});
+  for (const tab of allTabs) {
+    if (tab.id) {
+      try {
+        await sendMessageToTab(tab.id, {
+          action: 'timerRestarted'
+        });
+      } catch (err) {
+        console.error(`Failed to send restart message to tab ${tab.id}:`, err);
+      }
+    }
+  }
+        
+          const settings = await getStorageData(['interval', 'timerMode']);
+  await startTimer(settings.interval || 15, settings.timerMode || 'focus');
+  sendResponse({ status: 'Timer restarted globally' });
+        break;
+      
       case 'startTimer':
       case 'resumeTimer':
         // Reopen extension if it was closed
