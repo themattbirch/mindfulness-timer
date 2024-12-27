@@ -1,8 +1,8 @@
 {
-  "name": "mindfulness-timer",
+  "name": "mindful-browsing-timer",
   "version": "1.0.1",
   "type": "module",
-  "description": "Mindfulness Timer Chrome Extension",
+  "description": "Mindful Browsing Timer Chrome Extension",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -13,7 +13,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@types/chrome": "^0.0.263",
     "autoprefixer": "^10.4.18",
     "framer-motion": "^11.15.0",
     "lucide-react": "^0.359.0",
@@ -27,6 +26,7 @@
     "uuid": "^11.0.3"
   },
   "devDependencies": {
+    "@types/chrome": "^0.0.287",
     "@types/node": "^22.9.3",
     "@types/react": "^18.0.15",
     "@types/react-dom": "^18.0.6",

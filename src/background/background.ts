@@ -1,7 +1,12 @@
-import { getStorageData, setStorageData } from '../utils/storage';
-import { TimerState } from '../types/app';
+// src/background/background.ts
 
-// Add startTime/endTime in the default state.
+/// <reference types="chrome"/>
+
+import { getStorageData, setStorageData } from '../utils/storage';
+import { TimerState, StorageData } from '../types/app';
+
+let lastActivity: number = Date.now();
+
 const defaultTimerState: TimerState = {
   isActive: false,
   isPaused: false,
@@ -13,9 +18,9 @@ const defaultTimerState: TimerState = {
   endTime: null
 };
 
-// Initialize settings and timer state on installation
-chrome.runtime.onInstalled.addListener(() => {
-  setStorageData({
+// On install, set some defaults
+chrome.runtime.onInstalled.addListener(async () => {
+  await setStorageData({
     interval: 15,
     soundEnabled: true,
     theme: 'light',
@@ -27,175 +32,341 @@ chrome.runtime.onInstalled.addListener(() => {
     timerMode: 'custom',
     quoteCategory: 'all',
     minimalMode: false,
+    extensionClosed: false, 
     timerState: defaultTimerState
   });
+  console.log('[Background] Extension installed and default settings set.');
 });
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+/**
+ * A) Inject content script on tab updates if extensionClosed === false
+ */
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
-    chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['content-script.js']
+    const { extensionClosed } = await getStorageData(['extensionClosed']);
+    if (!extensionClosed) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ['content-script.js']
+        });
+        console.log(`[Background] Injected content-script.js into tab ${tabId}`);
+      } catch (err) {
+        console.error(`Failed to inject content script into tab ${tabId}:`, err);
+      }
+    }
+  }
+});
+
+/**
+ * B) Inject content script on tab switch if extensionClosed === false
+ */
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  refreshActivity();
+  const { extensionClosed } = await getStorageData(['extensionClosed']);
+  if (!extensionClosed) {
+    const tabId = activeInfo.tabId;
+    chrome.tabs.get(tabId, async (t) => {
+      if (t && /^https?:\/\//.test(t.url ?? '')) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId },
+            files: ['content-script.js']
+          });
+          console.log(`[Background] Injected content-script.js into tab ${tabId}`);
+        } catch (err) {
+          console.error(`Failed to inject content script into tab ${tabId}:`, err);
+        }
+      }
     });
   }
 });
 
-chrome.tabs.onActivated.addListener((activeInfo) => {
-  // Get the active tab ID
-  const tabId = activeInfo.tabId;
+/**
+ * C) Optional idle reset after 5 min
+ */
+setInterval(async () => {
+  const now = Date.now();
+  const diff = now - lastActivity;
+  const fiveMinutes = 5 * 60_000;
 
-  // (Optional) Use tabs.get to check its URL
-  chrome.tabs.get(tabId, (tab) => {
-    // If the URL is a normal webpage, re-inject the script
-    if (tab && tab.url && /^https?:\/\//.test(tab.url)) {
-      chrome.scripting.executeScript({
-        target: { tabId },
-        files: ['content-script.js']
-      });
-    }
-  });
-});
-
-// Listen for messages from the popup
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  const storageData = await getStorageData(['timerState']);
-  const timerState: TimerState = storageData.timerState || defaultTimerState;
-
-  switch (message.action) {
-    case 'startTimer':
-      await startTimer(message.interval, message.mode);
-      sendResponse({ status: 'Timer started' });
-      break;
-    case 'pauseTimer':
-      await pauseTimer(timerState);
-      sendResponse({ status: 'Timer paused' });
-      break;
-    case 'resumeTimer':
-      await resumeTimer(timerState);
-      sendResponse({ status: 'Timer resumed' });
-      break;
-    case 'resetTimer':
+  const { extensionClosed, timerState } = await getStorageData(['extensionClosed','timerState']);
+  if (!extensionClosed && diff > fiveMinutes) {
+    if (!timerState?.isActive || timerState.isPaused) { // Optional chaining for timerState
       await resetTimer();
-      sendResponse({ status: 'Timer reset' });
-      break;
-    case 'snoozeTimer':
-      await snoozeTimer();
-      sendResponse({ status: 'Timer snoozed for 5 minutes' });
-      break;
-    default:
-      sendResponse({ status: 'Unknown action' });
+      console.log('[Background] Auto-reset after idle');
+    }
   }
+}, 30_000);
 
+function refreshActivity(): void {
+  lastActivity = Date.now();
+}
+
+/**
+ * D) Listen for messages
+ */
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  (async () => {
+    refreshActivity();
+
+    const data: Partial<StorageData> = await getStorageData(['extensionClosed','timerState']);
+    let extensionClosed: boolean = data.extensionClosed ?? false;
+    const ts: TimerState = data.timerState || defaultTimerState;
+
+    switch (message.action) {
+      case 'startTimer':
+      case 'resumeTimer':
+        // Reopen extension if it was closed
+        if (extensionClosed) {
+          await setStorageData({ extensionClosed: false });
+          extensionClosed = false;
+          await injectOverlayInAllTabs();
+          console.log('[Background] Auto-reopened extension on Start/Resume');
+        }
+
+        if (message.action === 'startTimer') {
+          await startTimer(message.interval, message.mode);
+          sendResponse({ status: 'Timer started' });
+          console.log('[Background] Timer started.');
+        } else {
+          await resumeTimer(ts);
+          sendResponse({ status: 'Timer resumed' });
+          console.log('[Background] Timer resumed.');
+        }
+        break;
+
+      case 'pauseTimer':
+        await pauseTimer(ts);
+        sendResponse({ status: 'Timer paused' });
+        console.log('[Background] Timer paused.');
+        break;
+
+      case 'resetTimer':
+        await resetTimer();
+        sendResponse({ status: 'Timer reset' });
+        console.log('[Background] Timer reset.');
+        break;
+
+      case 'snoozeTimer':
+        await snoozeTimer();
+        sendResponse({ status: 'Timer snoozed' });
+        console.log('[Background] Timer snoozed.');
+        break;
+
+      case 'closeOverlay':
+        // Kill timer
+        await resetTimer();
+        // Mark extensionClosed
+        await setStorageData({ extensionClosed: true });
+        // Remove overlay in all tabs
+        await notifyAllTabs({ action: 'removeOverlay' });
+        console.log('[Background] Overlay closed globally.');
+        sendResponse({ status: 'Overlay closed globally' });
+        break;
+
+      default:
+        console.warn('[Background] Received unknown action:', message.action);
+        sendResponse({ status: 'Unknown action' });
+        break;
+    }
+  })();
   return true;
 });
 
-// Function to start the timer
-async function startTimer(
-  intervalInMinutes: number,
-  mode: 'focus' | 'shortBreak' | 'longBreak' | 'custom'
-) {
+/**
+ * E) Timer logic
+ */
+async function startTimer(intervalMin: number, mode: string): Promise<void> {
   const now = Date.now();
-  // exact endTime in ms
-  const endTime = now + intervalInMinutes * 60 * 1000;
-
-  const newTimerState: TimerState = {
+  const endTime = now + intervalMin * 60_000;
+  const newTS: TimerState = {
     isActive: true,
     isPaused: false,
-    timeLeft: intervalInMinutes * 60, // only for reference
-    mode: mode,
-    interval: intervalInMinutes,
+    timeLeft: intervalMin * 60,
+    mode: mode as any, // Consider refining the type if possible
+    interval: intervalMin,
     isBlinking: false,
     startTime: now,
-    endTime
+    endTime: endTime
   };
-
-  await setStorageData({ timerState: newTimerState });
-
-  // Create an alarm for that exact moment
+  await setStorageData({ timerState: newTS });
   chrome.alarms.clear('mindfulnessTimer');
   chrome.alarms.create('mindfulnessTimer', { when: endTime });
+  console.log(`[Background] Timer started for ${intervalMin} minutes.`);
 }
 
-// Function to pause the timer
-async function pauseTimer(timerState: TimerState) {
-  if (timerState.isActive && !timerState.isPaused) {
+async function pauseTimer(ts: TimerState): Promise<void> {
+  if (ts.isActive && !ts.isPaused && ts.endTime) {
     const now = Date.now();
-    if (timerState.endTime) {
-      const remaining = Math.max(0, timerState.endTime - now);
-      const remainingSec = Math.floor(remaining / 1000);
+    const remaining = Math.max(0, ts.endTime - now);
+    const remainingSec = Math.floor(remaining / 1000);
 
-      // clear alarm
-      await chrome.alarms.clear('mindfulnessTimer');
-
-      // Update the timer state with new leftover time
-      const updated: TimerState = {
-        ...timerState,
-        isPaused: true,
-        timeLeft: remainingSec,
-        endTime: null // no active deadline
-      };
-      await setStorageData({ timerState: updated });
-    }
+    chrome.alarms.clear('mindfulnessTimer');
+    const updated: TimerState = {
+      ...ts,
+      isPaused: true,
+      timeLeft: remainingSec,
+      endTime: null
+    };
+    await setStorageData({ timerState: updated });
+    console.log('[Background] Timer paused.');
   }
 }
 
-// Function to resume the timer
-async function resumeTimer(timerState: TimerState) {
-  if (timerState.isActive && timerState.isPaused && timerState.timeLeft > 0) {
+async function resumeTimer(ts: TimerState): Promise<void> {
+  if (ts.isActive && ts.isPaused && ts.timeLeft > 0) {
     const now = Date.now();
-    const newEndTime = now + timerState.timeLeft * 1000;
-
+    const newEndTime = now + ts.timeLeft * 1000;
     const updated: TimerState = {
-      ...timerState,
+      ...ts,
       isPaused: false,
       endTime: newEndTime,
       startTime: now
     };
     await setStorageData({ timerState: updated });
 
-    // Reset the alarm
     chrome.alarms.clear('mindfulnessTimer');
     chrome.alarms.create('mindfulnessTimer', { when: newEndTime });
+    console.log('[Background] Timer resumed.');
   }
 }
 
-// Function to reset the timer
-async function resetTimer() {
+async function resetTimer(): Promise<void> {
   await setStorageData({ timerState: defaultTimerState });
   chrome.alarms.clear('mindfulnessTimer');
+  console.log('[Background] Timer reset.');
 }
 
-// Function to snooze the timer for 5 minutes
-async function snoozeTimer() {
+async function snoozeTimer(): Promise<void> {
   const now = Date.now();
-  const endTime = now + 5 * 60 * 1000;
-
-  const newTimerState: TimerState = {
+  const endTime = now + 5 * 60_000;
+  const newTS: TimerState = {
     ...defaultTimerState,
     isActive: true,
     timeLeft: 5 * 60,
     mode: 'shortBreak',
     interval: 5,
     startTime: now,
-    endTime
+    endTime: endTime
   };
-
-  await setStorageData({ timerState: newTimerState });
+  await setStorageData({ timerState: newTS });
   chrome.alarms.clear('mindfulnessTimer');
   chrome.alarms.create('mindfulnessTimer', { when: endTime });
+  console.log('[Background] Timer snoozed for 5 minutes.');
 }
 
-// Handle alarm for timer completion
+/**
+ * F) Alarm => if it's still running at alarm time, mark completed
+ */
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'mindfulnessTimer') {
-    const storageData = await getStorageData(['soundEnabled', 'timerState']);
-    const { soundEnabled } = storageData;
-    const timerState: TimerState = storageData.timerState || defaultTimerState;
+    const { soundEnabled, selectedSound, timerState, showQuotes } = await getStorageData(
+      ['soundEnabled', 'selectedSound', 'timerState', 'showQuotes']
+    );
+    const ts: TimerState = timerState || defaultTimerState;
+    if (ts.isActive && !ts.isPaused) {
+      // Mark completed
+      await resetTimer();
 
-    if (timerState.isActive && !timerState.isPaused) {
-      // Mark the timer as completed
-      await setStorageData({ timerState: defaultTimerState });
-      chrome.runtime.sendMessage({ action: 'timerCompleted' });
+      // If user wants quotes, pick one
+      let quote: string | null = null;
+      if (showQuotes) {
+        quote = pickRandomQuote();
+      }
+
+      // Retrieve the sound file URL
+      let soundUrl: string | null = null;
+      if (soundEnabled && selectedSound) {
+        soundUrl = chrome.runtime.getURL(`sounds/${selectedSound}.mp3`);
+      }
+
+      // Broadcast the completed status + optional quote and sound URL to all tabs
+      const allTabs: chrome.tabs.Tab[] = await chrome.tabs.query({});
+      const activeTabs: chrome.tabs.Tab[] = [];
+
+      const windows: chrome.windows.Window[] = await chrome.windows.getAll({ populate: true });
+      windows.forEach((window: chrome.windows.Window) => {
+        window.tabs?.forEach((tab: chrome.tabs.Tab) => { // Optional chaining added here
+          if (tab.active) {
+            activeTabs.push(tab);
+          }
+        });
+      });
+
+      for (const tab of allTabs) {
+        if (tab.id === undefined) continue; // Ensure tab.id exists
+        const isActive: boolean = activeTabs.some(activeTab => activeTab.id === tab.id);
+        try {
+          await sendMessageToTab(tab.id, { action: 'timerCompleted', quote, soundUrl, isActive });
+          console.log(`[Background] Sent timerCompleted to tab ${tab.id}`);
+        } catch (err) {
+          console.error(`Failed to send timerCompleted to tab ${tab.id}:`, err);
+        }
+      }
     }
   }
 });
+
+/** 
+ * G) Simple helper to pick a random quote 
+ * (Replace with real logic or quote API if desired)
+ */
+function pickRandomQuote(): string {
+  const quotes: string[] = [
+    "Be mindful in the moment.",
+    "Focus on what matters now.",
+    "Take a breath and refocus.",
+    "Small steps lead to big results."
+  ];
+  const index: number = Math.floor(Math.random() * quotes.length);
+  return quotes[index];
+}
+
+/**
+ * I) Remove overlays or re-inject them
+ */
+async function notifyAllTabs(payload: any): Promise<void> {
+  const allTabs: chrome.tabs.Tab[] = await chrome.tabs.query({});
+  for (const tab of allTabs) {
+    if (tab.id === undefined) continue;
+    try {
+      await sendMessageToTab(tab.id, payload);
+      console.log(`[Background] Sent message to tab ${tab.id}:`, payload);
+    } catch (err) {
+      console.error(`Failed to send message to tab ${tab.id}:`, err);
+    }
+  }
+}
+
+async function injectOverlayInAllTabs(): Promise<void> {
+  const allTabs: chrome.tabs.Tab[] = await chrome.tabs.query({});
+  for (const tab of allTabs) {
+    if (tab.id === undefined || !/^https?:\/\//.test(tab.url ?? '')) continue;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content-script.js']
+      });
+      console.log(`[Background] Injected content-script.js into tab ${tab.id}`);
+    } catch (err) {
+      console.error(`Failed to inject content script into tab ${tab.id}:`, err);
+    }
+  }
+}
+
+/**
+ * Helper function to send messages to tabs using Promises
+ */
+function sendMessageToTab(tabId: number, message: any): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.sendMessage(tabId, message, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error(`Error sending message to tab ${tabId}:`, chrome.runtime.lastError);
+        reject(chrome.runtime.lastError);
+      } else {
+        resolve();
+      }
+    });
+  });
+}

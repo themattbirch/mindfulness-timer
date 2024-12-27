@@ -1,11 +1,26 @@
+// src/content/content-script.ts
+
+/// <reference types="chrome"/>
+
+import { TimerState } from '../types/app';
+
 (() => {
   console.log("[Mindful Timer] Content script loaded.");
 
-  // 1) Create a container element
+  // Avoid duplicates
+  if (document.getElementById("mindful-timer-overlay")) {
+    console.log("[Mindful Timer] Overlay already exists. Skipping creation.");
+    return; 
+  }
+
+  let intervalId: ReturnType<typeof setInterval> | undefined;
+  let isCompleted = false; // Local flag to manage completion state
+
+  // Container setup
   const container = document.createElement("div");
   container.id = "mindful-timer-overlay";
-  container.style.all = "initial";  // reset inherited styles
-  container.style.fontFamily = "sans-serif"; 
+  container.style.all = "initial";
+  container.style.fontFamily = "sans-serif";
   container.style.position = "fixed";
   container.style.bottom = "20px";
   container.style.right = "20px";
@@ -21,16 +36,49 @@
   container.style.justifyContent = "center";
   container.style.fontSize = "14px";
   container.style.zIndex = "999999";
-  container.style.userSelect = "none";  
+  container.style.userSelect = "none";
 
-  // in content-script.ts
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log("Content script received message:", message);
-    // handle it
-    sendResponse({ ack: true });
+  // Listen for messages
+  chrome.runtime.onMessage.addListener((msg: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
+    console.log("[Mindful Timer] Received message:", msg);
+    
+    if (msg.action === 'removeOverlay') {
+      console.log("[Mindful Timer] Removing overlay as per message.");
+      container.remove();
+      if (intervalId) clearInterval(intervalId);
+      sendResponse({ ack: true });
+    } else if (msg.action === 'timerCompleted') {
+      console.log("[Mindful Timer] Handling timerCompleted message.");
+      isCompleted = true;
+
+      // Show final text
+      timeDisplay.textContent = "Session Complete!";
+      console.log("[Mindful Timer] Displayed 'Session Complete!'");
+
+      // Play sound only if the tab is active and soundUrl is provided
+      if (msg.isActive && msg.soundUrl) {
+        console.log("[Mindful Timer] Playing sound:", msg.soundUrl);
+        playCompletionSound(msg.soundUrl);
+      } else {
+        console.log("[Mindful Timer] Sound not played. Either not active tab or no soundUrl provided.");
+      }
+
+      // Show quote
+      if (msg.quote) {
+        console.log("[Mindful Timer] Displaying quote:", msg.quote);
+        showQuoteInOverlay(msg.quote);
+      } else {
+        console.log("[Mindful Timer] No quote to display.");
+      }
+
+      // Update button text to "Restart"
+      actionButton.textContent = "Restart";
+      sendResponse({ ack: true });
+    }
+    return true;
   });
 
-   // Time display
+  // Time display
   const timeDisplay = document.createElement("div");
   timeDisplay.style.all = "unset";
   timeDisplay.style.fontSize = "18px";
@@ -38,106 +86,201 @@
   timeDisplay.style.color = "#fff";
   container.appendChild(timeDisplay);
 
-  // 3) Create an optional "close" button
+  // Close button
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "×";
   closeBtn.style.all = "unset";
   closeBtn.style.position = "absolute";
   closeBtn.style.top = "5px";
   closeBtn.style.right = "8px";
-  closeBtn.style.background = "transparent";
   closeBtn.style.color = "#fff";
-  closeBtn.style.border = "none";
+  closeBtn.style.background = "transparent";
   closeBtn.style.cursor = "pointer";
   closeBtn.style.fontSize = "16px";
   container.appendChild(closeBtn);
 
   closeBtn.addEventListener("click", () => {
+    console.log("[Mindful Timer] Close button clicked. Removing overlay.");
     container.remove();
+    if (intervalId) clearInterval(intervalId);
+
+    // Send message to kill globally
+    chrome.runtime.sendMessage({ action: "closeOverlay" });
   });
 
-  // 4) Append the container to the page
-  document.body.appendChild(container);
+  // Pause/Resume/Restart button
+  const actionButton = document.createElement("button");
+  actionButton.style.all = "unset";
+  actionButton.style.display = "inline-block";
+  actionButton.style.cursor = "pointer";
+  actionButton.style.fontSize = "14px";
+  actionButton.style.padding = "6px 10px";
+  actionButton.style.marginTop = "5px";
+  actionButton.style.color = "#333";
+  actionButton.style.background = "#ccc";
+  actionButton.style.border = "1px solid #666";
+  actionButton.style.borderRadius = "4px";
+  actionButton.textContent = "Pause"; // Initial text
+  container.appendChild(actionButton);
 
-  // 5) Function to format time in mm:ss
-  function formatTime(seconds: number): string {
-    const m = Math.floor(seconds / 60).toString().padStart(2, "0");
-    const s = (seconds % 60).toString().padStart(2, "0");
-    return `${m}:${s}`;
+  actionButton.addEventListener("click", () => {
+    console.log("[Mindful Timer] Action button clicked.");
+    if (isCompleted) {
+      // Handle Restart
+      console.log("[Mindful Timer] Restarting timer.");
+      // Retrieve current settings to restart the timer
+      chrome.storage.sync.get(['timerState'], async (res: any) => {
+        const ts: TimerState = res.timerState;
+        if (ts && ts.interval && ts.mode) {
+          try {
+            await chrome.runtime.sendMessage({
+              action: 'startTimer',
+              interval: ts.interval,
+              mode: ts.mode
+            });
+            console.log("[Mindful Timer] 'startTimer' message sent to background.");
+            // Reset overlay state
+            isCompleted = false;
+            timeDisplay.textContent = formatTime(ts.interval * 60);
+            actionButton.textContent = "Pause";
+            // Remove existing quote if any
+            const existingQuote = container.querySelector(".quote-text");
+            if (existingQuote) {
+              existingQuote.remove();
+              console.log("[Mindful Timer] Existing quote removed.");
+            }
+          } catch (err) {
+            console.error("[Mindful Timer] Failed to send 'startTimer' message:", err);
+          }
+        } else {
+          console.warn("[Mindful Timer] Timer state is incomplete. Cannot restart timer.");
+        }
+      });
+    } else {
+      // Handle Pause/Resume
+      chrome.storage.sync.get("timerState", (res: any) => {
+        const ts: TimerState = res.timerState;
+        if (ts && ts.isActive) {
+          if (!ts.isPaused) {
+            chrome.runtime.sendMessage({ action: "pauseTimer" });
+            console.log("[Mindful Timer] Sent 'pauseTimer' message.");
+            actionButton.textContent = "Resume";
+          } else {
+            chrome.runtime.sendMessage({ action: "resumeTimer" });
+            console.log("[Mindful Timer] Sent 'resumeTimer' message.");
+            actionButton.textContent = "Pause";
+          }
+        }
+      });
+    }
+  });
+
+  document.body.appendChild(container);
+  console.log("[Mindful Timer] Overlay created and appended to DOM.");
+
+  // Format helper
+  function formatTime(s: number): string {
+    const m = Math.floor(s / 60).toString().padStart(2,"0");
+    const sc = (s % 60).toString().padStart(2,"0");
+    return `${m}:${sc}`;
   }
 
-  // 6) Periodically fetch `timerState` from storage
-  function updateTimerDisplay() {
-  chrome.storage.sync.get("timerState", (res) => {
-    const ts = res.timerState;
+  // Play sound function
+  function playCompletionSound(soundUrl: string): void {
+    console.log("[Mindful Timer] Attempting to play sound:", soundUrl);
+    const audio = new Audio(soundUrl);
+    chrome.storage.sync.get('soundVolume', (res: any) => {
+      const volume = res.soundVolume !== undefined ? res.soundVolume / 100 : 1.0;
+      audio.volume = volume;
+      audio.play().then(() => {
+        console.log("[Mindful Timer] Audio playback started.");
+      }).catch((err: any) => {
+        console.error('Audio playback failed:', err);
+      });
+    });
+  }
 
-    if (ts && ts.isActive) {
-      // If an active timer is found
-      if (ts.isPaused) {
-        // If paused => show "Paused"
-        timeDisplay.textContent = "Paused";
-      } else if (ts.endTime) {
-        // If running => compute the time left
-        const now = Date.now();
-        const remainingMs = ts.endTime - now;
-        const newTimeLeft = Math.max(0, Math.floor(remainingMs / 1000));
-        timeDisplay.textContent = formatTime(newTimeLeft);
-      } else {
-        // Edge case: isActive but no endTime => maybe show "No timer running"
-        timeDisplay.textContent = "No timer running";
-      }
-    } else {
-      // If not active => "No timer running"
-      timeDisplay.textContent = "No timer running";
-    }
+  // Show quote in overlay
+  function showQuoteInOverlay(quote: string) {
+    const quoteEl = document.createElement("div");
+    quoteEl.className = "quote-text";
+    quoteEl.style.marginTop = "5px";
+    quoteEl.style.color = "#fff";
+    quoteEl.style.fontSize = "12px";
+    quoteEl.textContent = `“${quote}”`;
+    container.appendChild(quoteEl);
+    console.log("[Mindful Timer] Quote displayed:", quote);
+  }
 
-    // Then set Pause/Resume button text
-    if (!ts?.isActive) {
-      pauseButton.textContent = "Pause";
-      pauseButton.disabled = true;
-    } else {
-      pauseButton.disabled = false;
-      pauseButton.textContent = ts.isPaused ? "Resume" : "Pause";
-    }
-  });
-}
+  // Example function if you want a local “random quote”
+  function showRandomQuote(): void {
+    const randomQuotes: string[] = [
+      "Focus on the here and now.",
+      "One breath at a time.",
+      "Your mindful break is your superpower."
+    ];
+    const pick: string = randomQuotes[Math.floor(Math.random() * randomQuotes.length)];
 
-  // Create a Pause/Resume button
-const pauseButton = document.createElement("button");
-pauseButton.style.all = "unset";  
-pauseButton.style.display = "inline-block";
-pauseButton.textContent = "Pause";
-pauseButton.style.cursor = "pointer";
-pauseButton.style.fontSize = "14px";
-pauseButton.style.padding = "6px 10px";
-pauseButton.style.marginTop = "5px";
-pauseButton.style.color = "#333";
-pauseButton.style.background = "#ccc";
-pauseButton.style.border = "1px solid #666";
-pauseButton.style.borderRadius = "4px";
-container.appendChild(pauseButton);
+    const localQuoteEl = document.createElement("div");
+    localQuoteEl.className = "quote-text";
+    localQuoteEl.style.marginTop = "5px";
+    localQuoteEl.style.color = "#fff";
+    localQuoteEl.style.fontSize = "12px";
+    localQuoteEl.textContent = `“${pick}”`;
+    container.appendChild(localQuoteEl);
+    console.log("[Mindful Timer] Random quote displayed:", pick);
+  }
 
+  function updateTimerDisplay(): void {
+    if (isCompleted) return; // Prevent overriding completion state
 
-  pauseButton.addEventListener("click", () => {
-    // Toggle pause/resume
-    chrome.storage.sync.get("timerState", (res) => {
-      const ts = res.timerState;
+    chrome.storage.sync.get("timerState", (res: any) => {
+      const ts: TimerState = res.timerState;
       if (ts && ts.isActive) {
-        if (!ts.isPaused) {
-          // Pause the timer
-          chrome.runtime.sendMessage({ action: "pauseTimer" });
+        if (ts.isPaused) {
+          timeDisplay.textContent = "Paused";
+          console.log("[Mindful Timer] Timer is paused.");
+        } else if (ts.endTime) {
+          const now: number = Date.now();
+          const remainingMs: number = ts.endTime - now;
+          const newTimeLeft: number = Math.max(0, Math.floor(remainingMs / 1000));
+          timeDisplay.textContent = formatTime(newTimeLeft);
+          console.log(`[Mindful Timer] Timer updated. Time left: ${newTimeLeft} seconds.`);
         } else {
-          // Resume the timer
-          chrome.runtime.sendMessage({ action: "resumeTimer" });
+          timeDisplay.textContent = "No timer running";
+          console.log("[Mindful Timer] No timer running.");
+        }
+
+        // Reset completion flag if timer is active
+        if (ts.isActive) {
+          isCompleted = false;
+          console.log("[Mindful Timer] Timer is active. Resetting isCompleted flag.");
+          // Update button text based on pause state
+          actionButton.textContent = ts.isPaused ? "Resume" : "Pause";
+          // Remove existing quote if any
+          const existingQuote = container.querySelector(".quote-text");
+          if (existingQuote) {
+            existingQuote.remove();
+            console.log("[Mindful Timer] Existing quote removed.");
+          }
+        }
+      } else {
+        if (!isCompleted) { // Only set to "No timer running" if not completed
+          timeDisplay.textContent = "No timer running";
+          console.log("[Mindful Timer] Displaying 'No timer running'.");
         }
       }
+
+      if (!ts?.isActive) {
+        actionButton.disabled = true;
+        actionButton.textContent = "Pause"; // Default text when inactive
+      } else {
+        actionButton.disabled = false;
+        // Handled above when timer is active
+      }
     });
-  });
+  }
 
-
-
-  // 7) Update every second
-  const interval = setInterval(updateTimerDisplay, 1000);
+  intervalId = setInterval(updateTimerDisplay, 1000);
   updateTimerDisplay();
-
 })();
