@@ -4,6 +4,7 @@
 
 import { getStorageData, setStorageData } from '../utils/storage';
 import { TimerState, StorageData } from '../types/app';
+import { AppSettings, Achievement } from '../types/app';
 
 let lastActivity: number = Date.now();
 
@@ -16,6 +17,20 @@ const defaultTimerState: TimerState = {
   isBlinking: false,
   startTime: null,
   endTime: null
+};
+
+const defaultAppSettings: AppSettings = {
+  interval: 15,
+  soundEnabled: true,
+  theme: 'light',
+  soundVolume: 50,
+  autoStartTimer: false,
+  showQuotes: true,
+  quoteChangeInterval: 60,
+  selectedSound: 'gentle-bell',
+  timerMode: 'focus',
+  quoteCategory: 'all',
+  minimalMode: false,
 };
 
 // On install, set some defaults
@@ -119,25 +134,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.action) {
       // Handle global restart
 case 'globalRestart':
-  await resetTimer();
-  // Broadcast restart to all tabs
-  const allTabs = await chrome.tabs.query({});
-  for (const tab of allTabs) {
-    if (tab.id) {
-      try {
-        await sendMessageToTab(tab.id, {
-          action: 'timerRestarted'
-        });
-      } catch (err) {
-        console.error(`Failed to send restart message to tab ${tab.id}:`, err);
+  console.log('[Background] Handling globalRestart');
+  try {
+    await restartTimer();  // Call existing restartTimer function
+    // Broadcast restart to all tabs
+    const allTabs = await chrome.tabs.query({});
+    for (const tab of allTabs) {
+      if (tab.id) {
+        try {
+          await chrome.tabs.sendMessage(tab.id, {
+            action: 'timerRestarted',
+            timerState: await getStorageData(['timerState'])
+          });
+        } catch (err) {
+          console.error(`Failed to notify tab ${tab.id}:`, err);
+        }
       }
     }
+    sendResponse({ status: 'Timer restarted globally' });
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    console.error('[Background] globalRestart failed:', err);
+    sendResponse({ status: 'error', error: errorMessage });
   }
-        
-          const settings = await getStorageData(['interval', 'timerMode']);
-  await startTimer(settings.interval || 15, settings.timerMode || 'focus');
-  sendResponse({ status: 'Timer restarted globally' });
-        break;
+  break;
       
       case 'startTimer':
       case 'resumeTimer':
@@ -201,23 +221,53 @@ case 'globalRestart':
 /**
  * E) Timer logic
  */
-async function startTimer(intervalMin: number, mode: string): Promise<void> {
+async function startTimer(intervalMin: number, mode: TimerState['mode']): Promise<void> {
   const now = Date.now();
-  const endTime = now + intervalMin * 60_000;
-  const newTS: TimerState = {
+  const endTime = now + intervalMin * 60 * 1000;
+
+  const newTimerState: TimerState = {
     isActive: true,
     isPaused: false,
     timeLeft: intervalMin * 60,
-    mode: mode as any, // Consider refining the type if possible
+    mode: mode,
     interval: intervalMin,
     isBlinking: false,
     startTime: now,
-    endTime: endTime
+    endTime: endTime,
   };
-  await setStorageData({ timerState: newTS });
+
+  await setStorageData({ timerState: newTimerState });
   chrome.alarms.clear('mindfulnessTimer');
   chrome.alarms.create('mindfulnessTimer', { when: endTime });
-  console.log(`[Background] Timer started for ${intervalMin} minutes.`);
+
+  // Get all tabs and inject content script if needed
+  const allTabs = await chrome.tabs.query({});
+  for (const tab of allTabs) {
+    if (tab.id && /^https?:\/\//.test(tab.url ?? '')) {
+      try {
+        // First try to send message to existing content script
+        try {
+          await chrome.tabs.sendMessage(tab.id, { 
+            action: 'timerStarted', 
+            timerState: newTimerState 
+          });
+        } catch (e) {
+          // If sending message fails, inject content script and try again
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['content-script.js']
+          });
+          // Try sending message again after injection
+          await chrome.tabs.sendMessage(tab.id, { 
+            action: 'timerStarted', 
+            timerState: newTimerState 
+          });
+        }
+      } catch (err) {
+        console.error(`Failed to handle tab ${tab.id}:`, err);
+      }
+    }
+  }
 }
 
 async function pauseTimer(ts: TimerState): Promise<void> {
@@ -238,21 +288,39 @@ async function pauseTimer(ts: TimerState): Promise<void> {
   }
 }
 
-async function resumeTimer(ts: TimerState): Promise<void> {
-  if (ts.isActive && ts.isPaused && ts.timeLeft > 0) {
+async function resumeTimer(timerState: TimerState): Promise<void> {
+  if (timerState.isActive && timerState.isPaused && timerState.timeLeft > 0) {
     const now = Date.now();
-    const newEndTime = now + ts.timeLeft * 1000;
-    const updated: TimerState = {
-      ...ts,
-      isPaused: false,
-      endTime: newEndTime,
-      startTime: now
-    };
-    await setStorageData({ timerState: updated });
+    const newEndTime = now + timerState.timeLeft * 1000;
 
+    const updatedTimerState: TimerState = {
+      ...timerState,
+      isPaused: false,
+      startTime: now,
+      endTime: newEndTime,
+    };
+
+    await setStorageData({ timerState: updatedTimerState });
     chrome.alarms.clear('mindfulnessTimer');
     chrome.alarms.create('mindfulnessTimer', { when: newEndTime });
-    console.log('[Background] Timer resumed.');
+
+    // Broadcast to all tabs
+    const allTabs = await chrome.tabs.query({});
+    for (const tab of allTabs) {
+      if (tab.id) {
+        try {
+          await chrome.tabs.sendMessage(tab.id, {
+            action: 'timerResumed',
+            timerState: updatedTimerState,
+            timeLeft: timerState.timeLeft
+          });
+        } catch (err) {
+          console.error(`Failed to notify tab ${tab.id}:`, err);
+        }
+      }
+    }
+
+    console.log('[Background] Timer resumed and all tabs notified.');
   }
 }
 
@@ -260,6 +328,52 @@ async function resetTimer(): Promise<void> {
   await setStorageData({ timerState: defaultTimerState });
   chrome.alarms.clear('mindfulnessTimer');
   console.log('[Background] Timer reset.');
+}
+
+async function restartTimer(): Promise<void> {
+  await resetTimer();
+  const data = await getStorageData(['interval', 'timerMode']);
+  const interval = data.interval ?? defaultAppSettings.interval;
+  const timerMode = data.timerMode ?? defaultAppSettings.timerMode;
+  
+  // Start new timer
+  const now = Date.now();
+  const endTime = now + interval * 60 * 1000;
+  const newTimerState: TimerState = {
+    isActive: true,
+    isPaused: false,
+    timeLeft: interval * 60,
+    mode: timerMode,
+    interval: interval,
+    isBlinking: false,
+    startTime: now,
+    endTime: endTime
+  };
+
+  // Update storage
+  await setStorageData({ timerState: newTimerState });
+  chrome.alarms.clear('mindfulnessTimer');
+  chrome.alarms.create('mindfulnessTimer', { when: endTime });
+
+  // Broadcast to ALL tabs and popup
+  const allTabs = await chrome.tabs.query({});
+  for (const tab of allTabs) {
+    if (tab.id) {
+      try {
+        await chrome.tabs.sendMessage(tab.id, {
+          action: 'timerRestarted',
+          timerState: newTimerState,
+          timeLeft: interval * 60,
+          mode: timerMode,
+          interval: interval
+        });
+      } catch (err) {
+        console.error(`Failed to notify tab ${tab.id}:`, err);
+      }
+    }
+  }
+
+  console.log('[Background] Timer restarted globally.');
 }
 
 async function snoozeTimer(): Promise<void> {

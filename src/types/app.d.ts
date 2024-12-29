@@ -75,3 +75,8 @@ export interface QuoteProps {
   category: string;
   forceChange: number;
 }
+export interface StorageData extends AppSettings {
+  statistics: Statistics;
+  timerState: TimerState;
+  // extensionClosed is already included from AppSettings
+}

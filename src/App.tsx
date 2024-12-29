@@ -167,23 +167,21 @@ useEffect(() => {
 
   // Listen for messages from background
   useEffect(() => {
-    const messageListener = (message: any) => {
-      switch (message.action) {
-        case 'updateTime':
-          setTimerState(prev => ({ ...prev, timeLeft: message.timeLeft }));
-          break;
-        case 'resetTime':
-          setTimerState({
-            isActive: false,
-            isPaused: false,
-            timeLeft: message.timeLeft,
-            mode: 'focus',
-            interval: 15,
-            isBlinking: false,
-            startTime: null,
-            endTime: null
-          });
-          break;
+  const messageListener = (message: any) => {
+    switch (message.action) {
+      case 'timerRestarted':
+      case 'timerStarted':  // Handle both restart and start
+        setTimerState({
+          isActive: true,
+          isPaused: false,
+          timeLeft: message.timeLeft || (message.timerState?.timeLeft ?? 0),
+          mode: message.mode || (message.timerState?.mode ?? 'focus'),
+          interval: message.interval || (message.timerState?.interval ?? 15),
+          isBlinking: false,
+          startTime: message.timerState?.startTime ?? null,
+          endTime: message.timerState?.endTime ?? null
+        });
+        break;
         case 'stopTime':
           setTimerState({
             isActive: false,
@@ -259,16 +257,96 @@ useEffect(() => {
 
   const [quoteChangeCounter, setQuoteChangeCounter] = useState(0);
 
-  // Timer complete logic
-  async function handleTimerComplete() {
-    if (settings.soundEnabled) {
-      playSound(settings.selectedSound);
-    }
-    // Start blinking
-    setTimerState(prev => ({ ...prev, isActive: false, isPaused: false, timeLeft: 0, isBlinking: true }));
-    // Force quote change
-    setQuoteChangeCounter(prev => prev + 1);
+  // App.tsx fixes
+
+// 1. First, move getModeSeconds to the top level (before it's used)
+function getModeSeconds(s: AppSettings): number {
+  switch (s.timerMode) {
+    case 'focus':
+      return 25 * 60;
+    case 'shortBreak':
+      return 5 * 60;
+    case 'longBreak':
+      return 15 * 60;
+    case 'custom':
+      return s.interval * 60;
+    default:
+      return 15 * 60;
   }
+}
+
+// 2. Move playSound to before it's used and fix its type
+const playSound = (soundName: string): void => {
+  const soundUrl = chrome.runtime.getURL(`sounds/${soundName}.mp3`);
+  console.log(`Attempting to play sound: ${soundName} from URL: ${soundUrl}`);
+  const audio = new Audio(soundUrl);
+  audio.volume = settings.soundVolume / 100;
+  audio.play().catch(err => {
+    console.error(`Failed to play sound "${soundName}":`, err);
+  });
+};
+
+// 3. Fix handleTimerComplete and move handleRestartTimer out
+async function handleTimerComplete(): Promise<void> {
+  console.log('Timer completed');
+  if (settings.soundEnabled) {
+    playSound(settings.selectedSound);
+  }
+  
+  // Update local state
+  setTimerState(prev => ({ 
+    ...prev, 
+    isActive: false, 
+    isPaused: false, 
+    timeLeft: 0, 
+    isBlinking: true 
+  }));
+  
+  // Force quote change
+  setQuoteChangeCounter(prev => prev + 1);
+  
+  // Update storage
+  await setStorageData({
+    timerState: {
+      isActive: false,
+      isPaused: false,
+      timeLeft: 0,
+      mode: settings.timerMode,
+      interval: settings.interval,
+      isBlinking: true,
+      startTime: null,
+      endTime: null
+    }
+  });
+}
+
+// 4. Separate handleRestartTimer function
+async function handleRestartTimer(): Promise<void> {
+  console.log('Restarting timer globally');
+  try {
+    const response = await chrome.runtime.sendMessage({ 
+      action: 'globalRestart' 
+    });
+    console.log('Restart response:', response);
+    
+    // Update local state
+    setTimerState({
+      isActive: true,
+      isPaused: false,
+      timeLeft: getModeSeconds(settings),
+      mode: settings.timerMode,
+      interval: settings.interval,
+      isBlinking: false,
+      startTime: Date.now(),
+      endTime: Date.now() + (getModeSeconds(settings) * 1000)
+    });
+    
+    // Force quote refresh
+    setQuoteChangeCounter(prev => prev + 1);
+  } catch (err) {
+    console.error('Failed to restart timer:', err);
+  }
+}
 
   // Utility: format time
   function formatTime(seconds: number) {
@@ -277,21 +355,6 @@ useEffect(() => {
     return `${m}:${s}`;
   }
 
-  // Utility: compute mode seconds
-  function getModeSeconds(s: AppSettings) {
-    switch (s.timerMode) {
-      case 'focus':
-        return 25 * 60;
-      case 'shortBreak':
-        return 5 * 60;
-      case 'longBreak':
-        return 15 * 60;
-      case 'custom':
-        return s.interval * 60;
-      default:
-        return 15 * 60;
-    }
-  }
 
   // Reset Timer
   function handleResetTimer() {
@@ -357,17 +420,6 @@ useEffect(() => {
       handlePauseTimer();
     }
   }
-
-  // Sound playback
-  const playSound = useCallback((soundName: string) => {
-    const soundUrl = chrome.runtime.getURL(`sounds/${soundName}.mp3`);
-    console.log(`Attempting to play sound: ${soundName} from URL: ${soundUrl}`);
-    const audio = new Audio(soundUrl);
-    audio.volume = settings.soundVolume / 100;
-    audio.play().catch(err => {
-      console.error(`Failed to play sound "${soundName}":`, err);
-    });
-  }, [settings.soundVolume]);
 
   // Container style logic
   const containerStyle: CSSProperties = isEnlarged

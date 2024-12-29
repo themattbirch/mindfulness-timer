@@ -124,56 +124,43 @@ import { TimerState } from '../types/app';
   container.appendChild(actionButton);
 
   actionButton.addEventListener("click", () => {
-    console.log("[Mindful Timer] Action button clicked.");
-    if (isCompleted) {
-      // Handle Restart
-      console.log("[Mindful Timer] Restarting timer.");
-      // Retrieve current settings to restart the timer
-      chrome.storage.sync.get(['timerState'], async (res: any) => {
-        const ts: TimerState = res.timerState;
-        if (ts && ts.interval && ts.mode) {
-          try {
-            await chrome.runtime.sendMessage({
-              action: 'startTimer',
-              interval: ts.interval,
-              mode: ts.mode
-            });
-            console.log("[Mindful Timer] 'startTimer' message sent to background.");
-            // Reset overlay state
-            isCompleted = false;
-            timeDisplay.textContent = formatTime(ts.interval * 60);
-            actionButton.textContent = "Pause";
-            // Remove existing quote if any
-            const existingQuote = container.querySelector(".quote-text");
-            if (existingQuote) {
-              existingQuote.remove();
-              console.log("[Mindful Timer] Existing quote removed.");
-            }
-          } catch (err) {
-            console.error("[Mindful Timer] Failed to send 'startTimer' message:", err);
-          }
+  console.log("[Mindful Timer] Action button clicked.");
+  if (isCompleted) {
+    // Handle Restart
+    console.log("[Mindful Timer] Sending globalRestart message.");
+    chrome.runtime.sendMessage({ 
+      action: 'globalRestart' 
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error("[Mindful Timer] Failed to send globalRestart:", chrome.runtime.lastError);
+      } else {
+        console.log("[Mindful Timer] globalRestart response:", response);
+        // Reset local state
+        isCompleted = false;
+        actionButton.textContent = "Pause";
+        // Remove existing quote if any
+        const existingQuote = container.querySelector(".quote-text");
+        if (existingQuote) {
+          existingQuote.remove();
+        }
+      }
+    });
+  } else {
+    // Handle Pause/Resume (existing code)
+    chrome.storage.sync.get("timerState", (res: any) => {
+      const ts: TimerState = res.timerState;
+      if (ts && ts.isActive) {
+        if (!ts.isPaused) {
+          chrome.runtime.sendMessage({ action: "pauseTimer" });
+          actionButton.textContent = "Resume";
         } else {
-          console.warn("[Mindful Timer] Timer state is incomplete. Cannot restart timer.");
+          chrome.runtime.sendMessage({ action: "resumeTimer" });
+          actionButton.textContent = "Pause";
         }
-      });
-    } else {
-      // Handle Pause/Resume
-      chrome.storage.sync.get("timerState", (res: any) => {
-        const ts: TimerState = res.timerState;
-        if (ts && ts.isActive) {
-          if (!ts.isPaused) {
-            chrome.runtime.sendMessage({ action: "pauseTimer" });
-            console.log("[Mindful Timer] Sent 'pauseTimer' message.");
-            actionButton.textContent = "Resume";
-          } else {
-            chrome.runtime.sendMessage({ action: "resumeTimer" });
-            console.log("[Mindful Timer] Sent 'resumeTimer' message.");
-            actionButton.textContent = "Pause";
-          }
-        }
-      });
-    }
-  });
+      }
+    });
+  }
+});
 
   document.body.appendChild(container);
   console.log("[Mindful Timer] Overlay created and appended to DOM.");
@@ -232,54 +219,42 @@ import { TimerState } from '../types/app';
   }
 
   function updateTimerDisplay(): void {
-    if (isCompleted) return; // Prevent overriding completion state
+  if (isCompleted) return;
 
-    chrome.storage.sync.get("timerState", (res: any) => {
-      const ts: TimerState = res.timerState;
-      if (ts && ts.isActive) {
-        if (ts.isPaused) {
-          timeDisplay.textContent = "Paused";
-          console.log("[Mindful Timer] Timer is paused.");
-        } else if (ts.endTime) {
-          const now: number = Date.now();
-          const remainingMs: number = ts.endTime - now;
-          const newTimeLeft: number = Math.max(0, Math.floor(remainingMs / 1000));
-          timeDisplay.textContent = formatTime(newTimeLeft);
-          console.log(`[Mindful Timer] Timer updated. Time left: ${newTimeLeft} seconds.`);
-        } else {
-          timeDisplay.textContent = "No timer running";
-          console.log("[Mindful Timer] No timer running.");
-        }
-
-        // Reset completion flag if timer is active
-        if (ts.isActive) {
-          isCompleted = false;
-          console.log("[Mindful Timer] Timer is active. Resetting isCompleted flag.");
-          // Update button text based on pause state
-          actionButton.textContent = ts.isPaused ? "Resume" : "Pause";
-          // Remove existing quote if any
-          const existingQuote = container.querySelector(".quote-text");
-          if (existingQuote) {
-            existingQuote.remove();
-            console.log("[Mindful Timer] Existing quote removed.");
-          }
-        }
-      } else {
-        if (!isCompleted) { // Only set to "No timer running" if not completed
-          timeDisplay.textContent = "No timer running";
-          console.log("[Mindful Timer] Displaying 'No timer running'.");
-        }
+  chrome.storage.sync.get("timerState", (res: any) => {
+    const ts: TimerState = res.timerState;
+    if (ts && ts.isActive) {
+      if (ts.isPaused) {
+        timeDisplay.textContent = formatTime(ts.timeLeft);
+        actionButton.textContent = "Resume";
+      } else if (ts.endTime) {
+        const now: number = Date.now();
+        const remainingMs: number = ts.endTime - now;
+        const newTimeLeft: number = Math.max(0, Math.floor(remainingMs / 1000));
+        timeDisplay.textContent = formatTime(newTimeLeft);
+        actionButton.textContent = "Pause";
       }
 
+      // Reset completion flag and cleanup quote if needed
+      isCompleted = false;
+      const existingQuote = container.querySelector(".quote-text");
+      if (existingQuote) {
+        existingQuote.remove();
+        console.log("[Mindful Timer] Existing quote removed.");
+      }
+    } else {
+      if (!isCompleted) {
+        timeDisplay.textContent = "No timer running";
+        console.log("[Mindful Timer] Displaying 'No timer running'.");
+      }
+
+      actionButton.disabled = !ts?.isActive;
       if (!ts?.isActive) {
-        actionButton.disabled = true;
-        actionButton.textContent = "Pause"; // Default text when inactive
-      } else {
-        actionButton.disabled = false;
-        // Handled above when timer is active
+        actionButton.textContent = "Pause";
       }
-    });
-  }
+    }
+  });
+}
 
   intervalId = setInterval(updateTimerDisplay, 1000);
   updateTimerDisplay();
