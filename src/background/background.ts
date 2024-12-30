@@ -1,9 +1,9 @@
 /// <reference types="chrome"/>
-
 import { getStorageData, setStorageData } from '../utils/storage';
 import { TimerState, StorageData } from '../types/app';
 import { AppSettings } from '../types/app';
 
+let countdownInterval: ReturnType<typeof setInterval> | null = null;
 let lastActivity: number = Date.now();
 let activeWidgetTabs = new Set<number>();
 
@@ -98,10 +98,6 @@ function refreshActivity(): void {
   lastActivity = Date.now();
 }
 
-//
-// Force re-inject content script into all eligible tabs so that
-// the black widget can show up (or update).
-//
 async function forceReInjectOverlays(): Promise<void> {
   const tabs = await chrome.tabs.query({});
   const { timerState } = await getStorageData(['timerState']);
@@ -124,8 +120,6 @@ async function forceReInjectOverlays(): Promise<void> {
           timerState: timerState
         });
       } else {
-        // Even if not active, we might want to broadcast "timerReset" 
-        // so that widget shows "No timer running" if it's been injected.
         await chrome.tabs.sendMessage(tab.id, {
           action: 'timerReset',
           timerState: defaultTimerState
@@ -137,9 +131,6 @@ async function forceReInjectOverlays(): Promise<void> {
   }
 }
 
-//
-// Listen for messages from popup or content script
-//
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     refreshActivity();
@@ -149,12 +140,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.action) {
       case 'globalRestart':
         restartTimer()
-          .then(() => {
-            sendResponse({ status: 'Timer restarted globally' });
-          })
-          .catch((err) => {
-            sendResponse({ status: 'error', error: err.toString() });
-          });
+          .then(() => sendResponse({ status: 'Timer restarted globally' }))
+          .catch((err) => sendResponse({ status: 'error', error: err.toString() }));
         break;
 
       case 'startTimer':
@@ -189,10 +176,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
 
       case 'closeOverlay':
-        // If you want to end the timer as well, call resetTimer().
-        // Or if you want to keep the timer running in the background
-        // but remove the widget from that tab, just do notifyAllTabs
-        // with removeOverlay.
         await notifyAllTabs({ action: 'removeOverlay' });
         sendResponse({ status: 'Overlay closed globally' });
         break;
@@ -203,12 +186,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
     }
   })();
-  return true; // keep message channel open for async
+  return true; 
 });
 
-//
-// Utility to message every open tab
-//
 async function notifyAllTabs(payload: any): Promise<void> {
   const tabs = await chrome.tabs.query({});
   for (const tab of tabs) {
@@ -221,9 +201,10 @@ async function notifyAllTabs(payload: any): Promise<void> {
   }
 }
 
-//
-// Start new timer
-//
+// ──────────────────────────────────────────────────────────
+//                     TIMER LOGIC
+// ──────────────────────────────────────────────────────────
+
 async function startTimer(interval: number, mode: TimerState['mode']): Promise<void> {
   const now = Date.now();
   const endTime = now + interval * 60_000;
@@ -243,14 +224,46 @@ async function startTimer(interval: number, mode: TimerState['mode']): Promise<v
   chrome.alarms.clear('mindfulnessTimer');
   chrome.alarms.create('mindfulnessTimer', { when: endTime });
 
+  // Start a per-second countdown so timeLeft updates in storage
+  startCountdownInterval();
+
   // Re-inject overlays and broadcast
   await forceReInjectOverlays();
   await notifyAllTabs({ action: 'timerStarted', timerState: newTimerState });
 }
 
-//
-// Pause
-//
+function startCountdownInterval() {
+  if (countdownInterval) clearInterval(countdownInterval);
+
+  countdownInterval = setInterval(async () => {
+    const { timerState } = await getStorageData(['timerState']);
+    if (!timerState || !timerState.isActive || timerState.isPaused || !timerState.endTime) {
+      clearInterval(countdownInterval!);
+      countdownInterval = null;
+      return;
+    }
+
+    const now = Date.now();
+    const diffMs = timerState.endTime - now;
+    let newTimeLeft = Math.floor(diffMs / 1000);
+    if (newTimeLeft < 0) newTimeLeft = 0;
+
+    // If time is already done, let the alarm handle completion
+    if (newTimeLeft <= 0) {
+      clearInterval(countdownInterval!);
+      countdownInterval = null;
+      return;
+    }
+
+    // Otherwise update timeLeft in storage
+    const updatedTS: TimerState = {
+      ...timerState,
+      timeLeft: newTimeLeft
+    };
+    await updateTimerState(updatedTS);
+  }, 1000);
+}
+
 async function pauseTimer(ts: TimerState): Promise<TimerState> {
   if (ts.isActive && !ts.isPaused && ts.endTime) {
     const now = Date.now();
@@ -258,6 +271,11 @@ async function pauseTimer(ts: TimerState): Promise<TimerState> {
     const remainingSec = Math.floor(remaining / 1000);
 
     chrome.alarms.clear('mindfulnessTimer');
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+
     const updated: TimerState = {
       ...ts,
       isPaused: true,
@@ -270,9 +288,6 @@ async function pauseTimer(ts: TimerState): Promise<TimerState> {
   return ts;
 }
 
-//
-// Resume
-//
 async function resumeTimer(timerState: TimerState): Promise<void> {
   if (timerState.isActive && timerState.isPaused && timerState.timeLeft > 0) {
     const now = Date.now();
@@ -289,6 +304,9 @@ async function resumeTimer(timerState: TimerState): Promise<void> {
     chrome.alarms.clear('mindfulnessTimer');
     chrome.alarms.create('mindfulnessTimer', { when: newEndTime });
 
+    // Resume the interval
+    startCountdownInterval();
+
     await forceReInjectOverlays();
     await notifyAllTabs({
       action: 'timerResumed',
@@ -297,18 +315,16 @@ async function resumeTimer(timerState: TimerState): Promise<void> {
   }
 }
 
-//
-// Reset
-//
 async function resetTimer(): Promise<void> {
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
   await updateTimerState(defaultTimerState);
   chrome.alarms.clear('mindfulnessTimer');
   await forceReInjectOverlays();
 }
 
-//
-// Restart
-//
 async function restartTimer(): Promise<void> {
   await resetTimer();
   const data = await getStorageData(['interval', 'timerMode']);
@@ -319,9 +335,6 @@ async function restartTimer(): Promise<void> {
   await forceReInjectOverlays();
 }
 
-//
-// Snooze for 5 minutes
-//
 async function snoozeTimer(): Promise<void> {
   const now = Date.now();
   const endTime = now + 5 * 60_000;
@@ -338,6 +351,8 @@ async function snoozeTimer(): Promise<void> {
   chrome.alarms.clear('mindfulnessTimer');
   chrome.alarms.create('mindfulnessTimer', { when: endTime });
 
+  startCountdownInterval();
+
   await forceReInjectOverlays();
   await notifyAllTabs({
     action: 'timerStarted',
@@ -345,19 +360,12 @@ async function snoozeTimer(): Promise<void> {
   });
 }
 
-//
-// Helper: set the timerState & notify content scripts that it changed
-// so the black widget can refresh even if no "start/resume/pause" action
-// was triggered.
-//
 async function updateTimerState(newState: TimerState) {
   await setStorageData({ timerState: newState });
   await notifyAllTabs({ action: 'timerUpdated', timerState: newState });
 }
 
-//
 // Alarm triggers => timer done => broadcast 'timerCompleted'
-//
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'mindfulnessTimer') {
     const { soundEnabled, selectedSound, timerState, showQuotes } = await getStorageData([
