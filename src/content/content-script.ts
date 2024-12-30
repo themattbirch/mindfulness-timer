@@ -10,9 +10,7 @@ import { TimerState } from '../types/app';
     return;
   }
 
-  // --------------------------------------------------------
   // Create the black overlay container
-  // --------------------------------------------------------
   const container = document.createElement('div');
   container.id = 'mindful-timer-overlay';
   container.style.position = 'fixed';
@@ -32,9 +30,6 @@ import { TimerState } from '../types/app';
   container.style.justifyContent = 'flex-start';
   document.body.appendChild(container);
 
-  // --------------------------------------------------------
-  // Basic UI elements inside the container
-  // --------------------------------------------------------
   const timeDisplay = document.createElement('div');
   timeDisplay.style.fontSize = '18px';
   timeDisplay.style.fontWeight = 'bold';
@@ -65,14 +60,9 @@ import { TimerState } from '../types/app';
   actionButton.textContent = 'Pause';
   container.appendChild(actionButton);
 
-  // --------------------------------------------------------
-  // Local state
-  // --------------------------------------------------------
   let isCompleted = false;
 
-  // --------------------------------------------------------
   // Listen for changes in chrome.storage.sync
-  // --------------------------------------------------------
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'sync' && changes.timerState) {
       const newState = changes.timerState.newValue as TimerState;
@@ -81,9 +71,7 @@ import { TimerState } from '../types/app';
     }
   });
 
-  // --------------------------------------------------------
-  // On load, grab the current TimerState from storage
-  // --------------------------------------------------------
+  // On load, get the current TimerState
   chrome.storage.sync.get('timerState', (res) => {
     const ts = res.timerState as TimerState;
     if (ts) {
@@ -94,35 +82,28 @@ import { TimerState } from '../types/app';
     }
   });
 
-  // --------------------------------------------------------
   // Close button => remove overlay + notify background
-  // --------------------------------------------------------
   closeBtn.addEventListener('click', () => {
     container.remove();
     chrome.runtime.sendMessage({ action: 'closeOverlay' });
   });
 
-  // --------------------------------------------------------
   // Action button => Pause/Resume or Restart
-  // --------------------------------------------------------
   actionButton.addEventListener('click', () => {
     if (isCompleted) {
-      // If session is complete, "Restart"
       chrome.runtime.sendMessage({ action: 'globalRestart' });
       isCompleted = false;
       actionButton.textContent = 'Pause';
       return;
     }
 
-    // Otherwise => Pause or Resume
     chrome.storage.sync.get('timerState', (res) => {
       const ts = res.timerState as TimerState;
-      // If no timer => start a new one
+      // If no timer => just start a new one
       if (!ts || !ts.isActive) {
         chrome.runtime.sendMessage({ action: 'globalRestart' });
         return;
       }
-      // Pause or resume
       if (!ts.isPaused) {
         chrome.runtime.sendMessage({ action: 'pauseTimer' });
         actionButton.textContent = 'Resume';
@@ -133,13 +114,10 @@ import { TimerState } from '../types/app';
     });
   });
 
-  // --------------------------------------------------------
-  // Listen for runtime messages from background/popup
-  // --------------------------------------------------------
+  // Runtime messages from background/popup
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     switch (msg.action) {
       case 'timerUpdated':
-        // Timer has changed in background => refresh from storage
         chrome.storage.sync.get('timerState', (res) => {
           renderState(res.timerState as TimerState);
         });
@@ -190,32 +168,24 @@ import { TimerState } from '../types/app';
         sendResponse({ ack: true });
         break;
     }
-    return true; // Keep the message channel open
+    return true;
   });
 
-  // --------------------------------------------------------
-  // RENDERING HELPER
-  // --------------------------------------------------------
   function renderState(ts: TimerState) {
     if (!ts || !ts.isActive) {
       timeDisplay.textContent = 'No timer running';
       actionButton.textContent = 'Restart';
       return;
     }
-    // If paused => show leftover
     if (ts.isPaused) {
       timeDisplay.textContent = formatTime(ts.timeLeft);
       actionButton.textContent = 'Resume';
     } else {
-      // Timer is running
       timeDisplay.textContent = formatTime(ts.timeLeft);
       actionButton.textContent = 'Pause';
     }
   }
 
-  // --------------------------------------------------------
-  // PLAY COMPLETION SOUND
-  // --------------------------------------------------------
   function playCompletionSound(soundUrl: string) {
     const audio = new Audio(soundUrl);
     chrome.storage.sync.get('soundVolume', (res) => {
@@ -227,9 +197,6 @@ import { TimerState } from '../types/app';
     });
   }
 
-  // --------------------------------------------------------
-  // SHOW QUOTE
-  // --------------------------------------------------------
   function showQuote(quoteText: string) {
     const quoteEl = document.createElement('div');
     quoteEl.className = 'quote-text';
@@ -240,9 +207,6 @@ import { TimerState } from '../types/app';
     container.appendChild(quoteEl);
   }
 
-  // --------------------------------------------------------
-  // FORMAT TIME mm:ss
-  // --------------------------------------------------------
   function formatTime(seconds: number): string {
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');

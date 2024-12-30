@@ -14,7 +14,7 @@ import { Tooltip } from './Tooltip';
 // ============ CONSTANTS =============
 const FULL_WIDTH = 380;
 const FULL_HEIGHT = 600;
-const CIRCLE_SIZE = 75; // Keep it 75×75
+const CIRCLE_SIZE = 75; 
 const ENLARGED_WIDTH = 600;
 const ENLARGED_HEIGHT = 400;
 
@@ -99,7 +99,6 @@ export default function App() {
 
   // ============ 3) LOAD DATA ON MOUNT + STORAGE LISTENER ============
   useEffect(() => {
-    // Listen for changes to timerState in chrome.storage
     function handleStorageChanged(changes: { [key: string]: chrome.storage.StorageChange }, area: string) {
       if (area === 'sync' && changes.timerState) {
         syncLocalTimerFromStorage();
@@ -107,7 +106,6 @@ export default function App() {
     }
     chrome.storage.onChanged.addListener(handleStorageChanged);
 
-    // Load initial data on mount
     (async () => {
       const data = await getStorageData([
         'interval',
@@ -124,7 +122,6 @@ export default function App() {
         'minimalMode',
       ]);
 
-      // Build new settings object
       const newSettings: AppSettings = {
         interval: data.interval ?? 15,
         soundEnabled: data.soundEnabled ?? true,
@@ -140,7 +137,6 @@ export default function App() {
       };
       setSettings(newSettings);
 
-      // Build new timerState object
       const storedTimerState: TimerState = data.timerState || {
         isActive: false,
         isPaused: false,
@@ -159,14 +155,12 @@ export default function App() {
       }
     })();
 
-    // Cleanup
     return () => {
       chrome.storage.onChanged.removeListener(handleStorageChanged);
     };
   }, []);
 
   // ============ 4) AUTO-SHRINK WHEN RUNNING ============
-  // Decide whether we’re in shrunk mode or not
   useEffect(() => {
     if (timerState.isActive && !timerState.isPaused) {
       setIsShrunk(true);
@@ -175,7 +169,7 @@ export default function App() {
     }
   }, [timerState.isActive, timerState.isPaused]);
 
-  // Actually apply 75×75 if shrunk, else restore full size
+  // Apply 75×75 if shrunk
   useEffect(() => {
     if (isShrunk) {
       document.documentElement.style.width = `${CIRCLE_SIZE}px`;
@@ -325,7 +319,6 @@ export default function App() {
   }
 
   function handleTimerComplete() {
-    console.log('Timer completed');
     if (settings.soundEnabled) {
       playSound(settings.selectedSound);
     }
@@ -337,7 +330,6 @@ export default function App() {
       isBlinking: true,
     }));
     setQuoteChangeCounter((prev) => prev + 1);
-
     setStorageData({
       timerState: {
         isActive: false,
@@ -412,7 +404,14 @@ export default function App() {
     }
   }
 
-  // ============ 9) CLICK HANDLERS ============
+  // ============ 9) NEW => STOP/KILL TIMER ============
+  function handleKillTimer() {
+    chrome.runtime.sendMessage({ action: 'killTimer' }, (res) => {
+      console.log('Kill Timer response:', res);
+    });
+  }
+
+  // ============ 10) CLICK HANDLERS ============
   function handleGlobalClick() {
     // If timer is running, clicking anywhere in the popup will pause
     if (timerState.isActive && !timerState.isPaused) {
@@ -430,7 +429,7 @@ export default function App() {
     }
   }
 
-  // ============ 10) STYLES ============
+  // ============ 11) STYLES ============
   const containerStyle: CSSProperties = isEnlarged
     ? {
         position: 'fixed',
@@ -476,7 +475,7 @@ export default function App() {
         padding: '20px',
       };
 
-  // ============ 11) RENDER ============
+  // ============ 12) RENDER ============
   return (
     <div style={containerStyle} onClick={handleGlobalClick}>
       <Joyride
@@ -511,7 +510,7 @@ export default function App() {
             setSettings(newSettings);
             await setStorageData(newSettings);
 
-            // If the timer isn't running, update timeLeft to match new interval
+            // If timer isn't running, update timeLeft to match new interval
             if (!timerState.isActive && !timerState.isPaused) {
               setTimerState((prev) => ({
                 ...prev,
@@ -617,17 +616,30 @@ export default function App() {
                       Restart Timer
                     </button>
 
-                    <Tooltip text="Guided tour of the app">
+                    {/* Horizontal row => Start Onboarding & Stop Timer side by side */}
+                    <div className="flex flex-row items-center justify-center space-x-3">
+                      <Tooltip text="Guided tour of the app">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRun(true);
+                          }}
+                          className="px-4 py-2 bg-secondary hover:bg-secondary-light text-white rounded-lg shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-secondary-light"
+                        >
+                          Start Onboarding
+                        </button>
+                      </Tooltip>
+
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setRun(true);
+                          handleKillTimer();
                         }}
-                        className="px-4 py-2 bg-secondary hover:bg-secondary-light text-white rounded-lg shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-secondary-light"
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
                       >
-                        Start Onboarding
+                        Stop Timer
                       </button>
-                    </Tooltip>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -641,7 +653,7 @@ export default function App() {
   );
 }
 
-// ============ 12) HELPER FOR TIME FORMAT ============
+// ============ HELPER FOR TIME FORMAT ============
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
   const s = (seconds % 60).toString().padStart(2, '0');
