@@ -14,17 +14,16 @@ import { Tooltip } from './Tooltip';
 // ============ CONSTANTS =============
 const FULL_WIDTH = 380;
 const FULL_HEIGHT = 600;
-const CIRCLE_SIZE = 75;  // Keep it 75×75
+const CIRCLE_SIZE = 75; // Keep it 75×75
 const ENLARGED_WIDTH = 600;
 const ENLARGED_HEIGHT = 400;
 
 const Z_INDEX = {
   BASE: 1000,
   JOYRIDE: 1100,
-  OVERLAY: 1050
+  OVERLAY: 1050,
 };
 
-// ============ COMPONENT =============
 export default function App() {
   // ---------- 1) STATE -------------
   const [settings, setSettings] = useState<AppSettings>({
@@ -38,7 +37,7 @@ export default function App() {
     selectedSound: 'gentle-bell',
     timerMode: 'focus',
     quoteCategory: 'all',
-    minimalMode: false
+    minimalMode: false,
   });
 
   const [timerState, setTimerState] = useState<TimerState>({
@@ -49,7 +48,7 @@ export default function App() {
     interval: 15,
     isBlinking: false,
     startTime: null,
-    endTime: null
+    endTime: null,
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -63,23 +62,23 @@ export default function App() {
     {
       target: '.start-button',
       content: 'Click the green button above to start your Mindfulness Timer session.',
-      disableBeacon: true
+      disableBeacon: true,
     },
     {
       target: '.card-area',
       content: 'Click anywhere on the window to pause the timer when it’s running.',
-      disableBeacon: true
+      disableBeacon: true,
     },
     {
       target: '.quote-area',
       content: 'A random motivational quote will appear when the timer completes.',
-      disableBeacon: true
+      disableBeacon: true,
     },
     {
       target: '.settings-button',
       content: 'Adjust your preferences and timer settings here.',
-      disableBeacon: true
-    }
+      disableBeacon: true,
+    },
   ];
 
   function handleJoyrideCallback(data: CallBackProps) {
@@ -98,15 +97,34 @@ export default function App() {
     }
   }, [settings.theme]);
 
-  // ============ 3) LOAD DATA ON MOUNT ============
+  // ============ 3) LOAD DATA ON MOUNT + STORAGE LISTENER ============
   useEffect(() => {
-    const loadData = async () => {
+    // Listen for changes to timerState in chrome.storage
+    function handleStorageChanged(changes: { [key: string]: chrome.storage.StorageChange }, area: string) {
+      if (area === 'sync' && changes.timerState) {
+        syncLocalTimerFromStorage();
+      }
+    }
+    chrome.storage.onChanged.addListener(handleStorageChanged);
+
+    // Load initial data on mount
+    (async () => {
       const data = await getStorageData([
-        'interval','soundEnabled','theme','soundVolume',
-        'autoStartTimer','showQuotes','quoteChangeInterval',
-        'selectedSound','timerMode','quoteCategory','timerState','minimalMode'
+        'interval',
+        'soundEnabled',
+        'theme',
+        'soundVolume',
+        'autoStartTimer',
+        'showQuotes',
+        'quoteChangeInterval',
+        'selectedSound',
+        'timerMode',
+        'quoteCategory',
+        'timerState',
+        'minimalMode',
       ]);
 
+      // Build new settings object
       const newSettings: AppSettings = {
         interval: data.interval ?? 15,
         soundEnabled: data.soundEnabled ?? true,
@@ -118,10 +136,11 @@ export default function App() {
         selectedSound: data.selectedSound ?? 'gentle-bell',
         timerMode: data.timerMode ?? 'focus',
         quoteCategory: data.quoteCategory ?? 'all',
-        minimalMode: data.minimalMode ?? false
+        minimalMode: data.minimalMode ?? false,
       };
       setSettings(newSettings);
 
+      // Build new timerState object
       const storedTimerState: TimerState = data.timerState || {
         isActive: false,
         isPaused: false,
@@ -130,7 +149,7 @@ export default function App() {
         interval: newSettings.interval,
         isBlinking: false,
         startTime: null,
-        endTime: null
+        endTime: null,
       };
       setTimerState(storedTimerState);
 
@@ -138,11 +157,16 @@ export default function App() {
       if (newSettings.autoStartTimer && !storedTimerState.isActive) {
         handleStartTimer();
       }
+    })();
+
+    // Cleanup
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChanged);
     };
-    loadData();
   }, []);
 
   // ============ 4) AUTO-SHRINK WHEN RUNNING ============
+  // Decide whether we’re in shrunk mode or not
   useEffect(() => {
     if (timerState.isActive && !timerState.isPaused) {
       setIsShrunk(true);
@@ -151,7 +175,7 @@ export default function App() {
     }
   }, [timerState.isActive, timerState.isPaused]);
 
-  // Actually apply 75×75 on shrunk
+  // Actually apply 75×75 if shrunk, else restore full size
   useEffect(() => {
     if (isShrunk) {
       document.documentElement.style.width = `${CIRCLE_SIZE}px`;
@@ -167,12 +191,12 @@ export default function App() {
   }, [isShrunk]);
 
   // ============ 5) SYNC HELPER ============
-  // ADDED: a helper to immediately re-check storage and set local time
   async function syncLocalTimerFromStorage() {
     const data = await getStorageData(['timerState']);
     const newTimer: TimerState | undefined = data.timerState;
-    if (!newTimer) return;
-    setTimerState(newTimer);
+    if (newTimer) {
+      setTimerState(newTimer);
+    }
   }
 
   // ============ 6) LISTEN FOR MESSAGES ============
@@ -180,7 +204,6 @@ export default function App() {
     const messageListener = (message: any) => {
       switch (message.action) {
         case 'timerStarted':
-        case 'timerRestarted':
           setTimerState({
             isActive: true,
             isPaused: false,
@@ -189,35 +212,32 @@ export default function App() {
             interval: message.timerState?.interval ?? 15,
             isBlinking: false,
             startTime: message.timerState?.startTime ?? null,
-            endTime: message.timerState?.endTime ?? null
+            endTime: message.timerState?.endTime ?? null,
           });
-          // Force immediate local sync
           syncLocalTimerFromStorage();
           break;
 
         case 'timerPaused':
-          setTimerState(prev => ({
+          setTimerState((prev) => ({
             ...prev,
             isActive: true,
             isPaused: true,
             timeLeft: message.timerState?.timeLeft ?? prev.timeLeft,
             startTime: message.timerState?.startTime ?? prev.startTime,
-            endTime: null
+            endTime: null,
           }));
-          // Force immediate local sync
           syncLocalTimerFromStorage();
           break;
 
         case 'timerResumed':
-          setTimerState(prev => ({
+          setTimerState((prev) => ({
             ...prev,
             isActive: true,
             isPaused: false,
             timeLeft: message.timerState?.timeLeft ?? prev.timeLeft,
             startTime: message.timerState?.startTime ?? prev.startTime,
-            endTime: message.timerState?.endTime ?? prev.endTime
+            endTime: message.timerState?.endTime ?? prev.endTime,
           }));
-          // Force immediate local sync
           syncLocalTimerFromStorage();
           break;
 
@@ -230,9 +250,8 @@ export default function App() {
             interval: settings.interval,
             isBlinking: false,
             startTime: null,
-            endTime: null
+            endTime: null,
           });
-          // Force immediate local sync
           syncLocalTimerFromStorage();
           break;
 
@@ -244,6 +263,7 @@ export default function App() {
           break;
       }
     };
+
     chrome.runtime.onMessage.addListener(messageListener);
     return () => {
       chrome.runtime.onMessage.removeListener(messageListener);
@@ -253,10 +273,11 @@ export default function App() {
   // ============ 7) 1-SECOND POLLING ============
   useEffect(() => {
     let intervalId: number | undefined;
+
     if (timerState.isActive && !timerState.isPaused) {
       intervalId = window.setInterval(async () => {
         const data = await getStorageData(['timerState']);
-        const current: TimerState = data.timerState;
+        const current: TimerState | undefined = data.timerState;
         if (!current || !current.isActive || current.isPaused) {
           clearInterval(intervalId);
           return;
@@ -270,17 +291,18 @@ export default function App() {
             clearInterval(intervalId);
             handleTimerComplete();
           }
-          setTimerState(prev => ({
+          setTimerState((prev) => ({
             ...prev,
             timeLeft: newTimeLeft,
             isActive: current.isActive,
             isPaused: current.isPaused,
             startTime: current.startTime ?? null,
-            endTime: current.endTime ?? null
+            endTime: current.endTime ?? null,
           }));
         }
       }, 1000);
     }
+
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
@@ -289,11 +311,16 @@ export default function App() {
   // ============ 8) TIMER LOGIC ============
   function getModeSeconds(s: AppSettings): number {
     switch (s.timerMode) {
-      case 'focus':      return 25 * 60;
-      case 'shortBreak': return  5 * 60;
-      case 'longBreak':  return 15 * 60;
-      case 'custom':     return  s.interval * 60;
-      default:           return 15 * 60;
+      case 'focus':
+        return 25 * 60;
+      case 'shortBreak':
+        return 5 * 60;
+      case 'longBreak':
+        return 15 * 60;
+      case 'custom':
+        return s.interval * 60;
+      default:
+        return 15 * 60;
     }
   }
 
@@ -302,14 +329,14 @@ export default function App() {
     if (settings.soundEnabled) {
       playSound(settings.selectedSound);
     }
-    setTimerState(prev => ({
+    setTimerState((prev) => ({
       ...prev,
       isActive: false,
       isPaused: false,
       timeLeft: 0,
-      isBlinking: true
+      isBlinking: true,
     }));
-    setQuoteChangeCounter(prev => prev + 1);
+    setQuoteChangeCounter((prev) => prev + 1);
 
     setStorageData({
       timerState: {
@@ -320,8 +347,8 @@ export default function App() {
         interval: settings.interval,
         isBlinking: true,
         startTime: null,
-        endTime: null
-      }
+        endTime: null,
+      },
     });
   }
 
@@ -329,7 +356,7 @@ export default function App() {
     const soundUrl = chrome.runtime.getURL(`sounds/${soundName}.mp3`);
     const audio = new Audio(soundUrl);
     audio.volume = settings.soundVolume / 100;
-    audio.play().catch(err => {
+    audio.play().catch((err) => {
       console.error(`Failed to play sound "${soundName}":`, err);
     });
   }
@@ -338,7 +365,7 @@ export default function App() {
     chrome.runtime.sendMessage({
       action: 'startTimer',
       interval: settings.interval,
-      mode: settings.timerMode
+      mode: settings.timerMode,
     });
     setTimerState({
       isActive: true,
@@ -348,18 +375,18 @@ export default function App() {
       interval: settings.interval,
       isBlinking: false,
       startTime: null,
-      endTime: null
+      endTime: null,
     });
   }
 
   function handlePauseTimer() {
     chrome.runtime.sendMessage({ action: 'pauseTimer' });
-    setTimerState(prev => ({ ...prev, isPaused: true }));
+    setTimerState((prev) => ({ ...prev, isPaused: true }));
   }
 
   function handleResumeTimer() {
     chrome.runtime.sendMessage({ action: 'resumeTimer' });
-    setTimerState(prev => ({ ...prev, isActive: true, isPaused: false }));
+    setTimerState((prev) => ({ ...prev, isActive: true, isPaused: false }));
   }
 
   function handleResetTimer() {
@@ -372,7 +399,7 @@ export default function App() {
       interval: settings.interval,
       isBlinking: false,
       startTime: null,
-      endTime: null
+      endTime: null,
     });
   }
 
@@ -387,15 +414,17 @@ export default function App() {
 
   // ============ 9) CLICK HANDLERS ============
   function handleGlobalClick() {
+    // If timer is running, clicking anywhere in the popup will pause
     if (timerState.isActive && !timerState.isPaused) {
       handlePauseTimer();
     }
   }
 
   function handleCircleClick() {
+    // If timer ended, the circle is blinking => click to reset
     if (timerState.timeLeft === 0 && timerState.isBlinking) {
       handleResetTimer();
-      setTimerState(prev => ({ ...prev, isBlinking: false }));
+      setTimerState((prev) => ({ ...prev, isBlinking: false }));
     } else {
       handlePauseTimer();
     }
@@ -413,7 +442,7 @@ export default function App() {
         overflowY: 'hidden',
         transition: 'width 0.5s ease, height 0.5s ease',
         borderRadius: '12px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
       }
     : isShrunk
     ? {
@@ -423,13 +452,13 @@ export default function App() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#2979FF', 
+        backgroundColor: '#2979FF',
         overflow: 'hidden',
         transition: 'width 0.3s ease, height 0.3s ease',
         zIndex: Z_INDEX.BASE,
         borderRadius: '50%',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        padding: 0
+        padding: 0,
       }
     : {
         position: 'fixed',
@@ -444,7 +473,7 @@ export default function App() {
         zIndex: Z_INDEX.BASE,
         borderRadius: '12px',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        padding: '20px'
+        padding: '20px',
       };
 
   // ============ 11) RENDER ============
@@ -481,13 +510,14 @@ export default function App() {
           onSettingsChange={async (newSettings) => {
             setSettings(newSettings);
             await setStorageData(newSettings);
+
             // If the timer isn't running, update timeLeft to match new interval
             if (!timerState.isActive && !timerState.isPaused) {
-              setTimerState(prev => ({
+              setTimerState((prev) => ({
                 ...prev,
                 timeLeft: getModeSeconds(newSettings),
                 interval: newSettings.interval,
-                mode: newSettings.timerMode
+                mode: newSettings.timerMode,
               }));
             }
           }}
@@ -497,20 +527,20 @@ export default function App() {
         {!isSettingsOpen && (
           <>
             {isShrunk ? (
-  // Shrunk circle
-  <div
-    className="w-full h-full bg-blue-500 rounded-full flex flex-col items-center justify-center cursor-pointer text-white font-bold text-sm"
-    onClick={(e) => {
-      e.stopPropagation();
-      handleCircleClick();
-    }}
-  >
-    {/* Show mm:ss */}
-    {formatTime(timerState.timeLeft)}
-    {timerState.isActive && !timerState.isPaused && (
-      <div className="text-xs mt-1">Pause</div>
-    )}
-  </div>
+              // Shrunk circle
+              <div
+                className="w-full h-full bg-blue-500 rounded-full flex flex-col items-center justify-center cursor-pointer text-white font-bold text-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCircleClick();
+                }}
+              >
+                {/* Show mm:ss */}
+                {formatTime(timerState.timeLeft)}
+                {timerState.isActive && !timerState.isPaused && (
+                  <div className="text-xs mt-1">Pause</div>
+                )}
+              </div>
             ) : (
               // Full UI
               <div className="w-full max-w-sm flex flex-col">
@@ -523,7 +553,7 @@ export default function App() {
                         onClick={(e) => {
                           e.stopPropagation();
                           const newTheme = settings.theme === 'dark' ? 'light' : 'dark';
-                          setSettings(prev => ({ ...prev, theme: newTheme }));
+                          setSettings((prev) => ({ ...prev, theme: newTheme }));
                           chrome.storage.sync.set({ theme: newTheme });
                         }}
                         aria-label="Toggle Theme"
@@ -597,7 +627,7 @@ export default function App() {
                       >
                         Start Onboarding
                       </button>
-                    </Tooltip> 
+                    </Tooltip>
                   </div>
                 </div>
               </div>

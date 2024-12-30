@@ -144,10 +144,16 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 
   // 3) Listen for messages from background/popup
   chrome.runtime.onMessage.addListener((msg: any, sender, sendResponse) => {
-    console.log('[Mindful Timer] Received message:', msg);
 
     switch (msg.action) {
-
+  case 'timerUpdated':
+     // Forcibly refresh display,
+   console.log('[Mindful Timer] Received timerUpdated => forcing UI refresh');
+  if (intervalId) clearInterval(intervalId);
+   intervalId = setInterval(updateTimerDisplay, 1000);
+  updateTimerDisplay();
+    sendResponse({ ack: true });
+  break;
       case 'removeOverlay':
         // We’re told to remove ourselves from the DOM
         container.remove();
@@ -169,16 +175,14 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
         sendResponse({ ack: true });
         break;
 
-      case 'timerStarted':
-      case 'timerRestarted':
-        // The timer is newly started or restarted => reset everything
-        isCompleted = false;
-        actionButton.textContent = 'Pause';
-        if (intervalId) clearInterval(intervalId);
-        intervalId = setInterval(updateTimerDisplay, 1000);
-        updateTimerDisplay();
-        sendResponse({ ack: true });
-        break;
+       case 'timerStarted':
+    isCompleted = false;
+    actionButton.textContent = 'Pause';
+    if (intervalId) clearInterval(intervalId);
+    intervalId = setInterval(updateTimerDisplay, 1000);
+    updateTimerDisplay();
+    sendResponse({ ack: true });
+    break;
 
       case 'timerPaused':
         // The timer is paused

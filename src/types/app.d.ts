@@ -26,7 +26,6 @@ export interface AppSettings {
 export interface StorageData extends AppSettings {
   statistics: Statistics;
   timerState: TimerState;
-  extensionClosed: boolean;
 }
 
 export interface Quote {
@@ -78,5 +77,4 @@ export interface QuoteProps {
 export interface StorageData extends AppSettings {
   statistics: Statistics;
   timerState: TimerState;
-  // extensionClosed is already included from AppSettings
 }
