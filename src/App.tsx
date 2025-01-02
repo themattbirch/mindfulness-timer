@@ -79,6 +79,11 @@ export default function App() {
       content: 'Adjust your preferences and timer settings here.',
       disableBeacon: true,
     },
+      {
+      target: '.kill-timer',
+      content: 'Kill/close all open timers (any browser tab) by clicking this button.',
+      disableBeacon: true,
+    },
   ];
 
   function handleJoyrideCallback(data: CallBackProps) {
@@ -629,16 +634,18 @@ export default function App() {
                           Start Onboarding
                         </button>
                       </Tooltip>
-
+                   
+                      <Tooltip text="Stop Running Timer">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleKillTimer();
                         }}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="kill-timer px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
                       >
-                        Stop Timer
-                      </button>
+                        Kill Timer
+                          </button>
+                          </Tooltip>
                     </div>
                   </div>
                 </div>
